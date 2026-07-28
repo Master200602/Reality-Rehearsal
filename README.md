@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 🎯 Reality Rehearsal
 
 > **AI-Powered Interview Simulator** — Practice interviews with voice interaction, real-time behavior tracking, and auto-generated performance reports.
@@ -131,3 +132,6 @@ This project is licensed under the MIT License.
 ---
 
 <p align="center">Built with ❤️ and AI</p>
+=======
+# Reality-Rehearsal
+>>>>>>> 8ac7be80d1ddde408237e3298c65e5c7b9dfbd80
