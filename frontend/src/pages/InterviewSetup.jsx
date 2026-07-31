@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Play, Briefcase, Zap, List, AlertCircle, Mic } from 'lucide-react';
-import { generateQuestions } from '../services/api';
+import { Settings, Play, Briefcase, Zap, List, Mic } from 'lucide-react';
 import './InterviewSetup.css';
 
 const domains = [
@@ -14,33 +13,13 @@ const InterviewSetup = () => {
   const [domain, setDomain] = useState(domains[0]);
   const [difficulty, setDifficulty] = useState('Medium');
   const [questionsCount, setQuestionsCount] = useState(5);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
 
-  const handleStart = async (e) => {
+  const handleStart = (e) => {
     e.preventDefault();
-    setIsLoading(true);
-    setError('');
-
-    try {
-      // Call the real backend API to generate questions
-      const questions = await generateQuestions(domain, difficulty, questionsCount);
-
-      // Navigate to interview with the generated questions
-      navigate('/interview', {
-        state: {
-          domain,
-          difficulty,
-          questionsCount,
-          questions: Array.isArray(questions) ? questions : [],
-        },
-      });
-    } catch (err) {
-      console.error('Failed to generate questions:', err);
-      setError('Failed to generate questions. Please check your backend server is running and try again.');
-    } finally {
-      setIsLoading(false);
-    }
+    // Navigate immediately — the AI interviewer will generate questions dynamically
+    navigate('/interview', {
+      state: { domain, difficulty, questionsCount },
+    });
   };
 
   return (
@@ -53,13 +32,6 @@ const InterviewSetup = () => {
 
         <div className="setup-content">
           <form className="setup-form glass-card" onSubmit={handleStart}>
-
-            {error && (
-              <div className="error-banner">
-                <AlertCircle size={18} />
-                <span>{error}</span>
-              </div>
-            )}
 
             <div className="form-group">
               <label><Briefcase className="label-icon" /> Select Domain</label>
@@ -111,15 +83,8 @@ const InterviewSetup = () => {
               </div>
             </div>
 
-            <button type="submit" className="btn-primary start-btn" disabled={isLoading}>
-              {isLoading ? (
-                <>
-                  <span className="loading-spinner"></span>
-                  Generating Questions...
-                </>
-              ) : (
-                <>Start Session <Play size={20} fill="currentColor" /></>
-              )}
+            <button type="submit" className="btn-primary start-btn">
+              Start Interview <Play size={20} fill="currentColor" />
             </button>
           </form>
 
@@ -144,7 +109,7 @@ const InterviewSetup = () => {
               </div>
             </div>
             <div className="preview-info">
-              <p><Mic size={16} /> Make sure your microphone is ready. The AI interviewer will speak questions aloud, and you'll answer using your voice.</p>
+              <p><Mic size={16} /> Your AI interviewer will greet you, ask questions by voice, and follow up based on your answers — like a real conversation.</p>
             </div>
           </div>
         </div>

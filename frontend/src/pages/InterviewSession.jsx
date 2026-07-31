@@ -1,271 +1,239 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Mic, MicOff, SkipForward, Clock, Send, Volume2, VolumeX, Loader, AlertCircle } from 'lucide-react';
+import { Mic, MicOff, Volume2, Loader, AlertCircle, LogOut, Send, Play } from 'lucide-react';
 import useSpeech from '../hooks/useSpeech';
-import { evaluateAnswer } from '../services/api';
+import { sendConversationTurn } from '../services/api';
 import './InterviewSession.css';
 
 /**
- * Voice state phases for each question:
- * 'speaking'   → AI reads the question aloud (TTS)
- * 'listening'  → User is answering via microphone (STT)
- * 'evaluating' → Answer sent to API for evaluation
- * 'feedback'   → Brief score/feedback shown before next question
- * 'idle'       → Waiting for user action
+ * Conversational AI Interview Session — Hybrid Voice & Text
  */
-
 const InterviewSession = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const {
     domain = 'General',
     difficulty = 'Medium',
-    questions: apiQuestions = [],
+    questionsCount = 5,
   } = location.state || {};
 
   // ─── State ───
-  const [currentQIndex, setCurrentQIndex] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(120);
-  const [phase, setPhase] = useState('idle'); // speaking | listening | evaluating | feedback | idle
+  const [isStarted, setIsStarted] = useState(false);
+  const [phase, setPhase] = useState('idle'); // idle | greeting | speaking | listening | thinking | complete
+  const [conversationHistory, setConversationHistory] = useState([]);
   const [responses, setResponses] = useState([]);
-  const [currentFeedback, setCurrentFeedback] = useState(null);
+  const [questionNumber, setQuestionNumber] = useState(0);
   const [error, setError] = useState('');
+  const [textInput, setTextInput] = useState('');
 
   // ─── Speech hook ───
   const {
     transcript,
     interimTranscript,
     isListening,
+    speechError,
     startListening,
     stopListening,
     resetTranscript,
-    isSpeaking,
+    getTranscript,
     speak,
     stopSpeaking,
     isSpeechSupported,
   } = useSpeech();
 
   // ─── Refs ───
-  const timerRef = useRef(null);
-  const hasSpokenRef = useRef(false);
+  const chatEndRef = useRef(null);
+  const isProcessingRef = useRef(false);
+  const conversationHistoryRef = useRef([]);
 
-  // ─── Fallback questions if none provided ───
-  const questions = apiQuestions.length > 0
-    ? apiQuestions.map(q => (typeof q === 'string' ? q : q.question))
-    : [
-        `Tell me about your experience in ${domain}.`,
-        `What are the key challenges you've faced in ${domain}?`,
-        `How do you approach problem-solving in a ${difficulty.toLowerCase()} scenario?`,
-      ];
-
-  const totalQuestions = questions.length;
-  const currentQuestion = questions[currentQIndex] || '';
-  const displayAnswer = transcript + (interimTranscript ? ' ' + interimTranscript : '');
-
-  // ─── Timer ───
   useEffect(() => {
-    if (phase === 'listening') {
-      setTimeLeft(120);
-      timerRef.current = setInterval(() => {
-        setTimeLeft(prev => {
-          if (prev <= 1) {
-            // Time's up — auto-submit
-            clearInterval(timerRef.current);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else {
-      clearInterval(timerRef.current);
-    }
-    return () => clearInterval(timerRef.current);
-  }, [phase]);
+    conversationHistoryRef.current = conversationHistory;
+  }, [conversationHistory]);
 
-  // Auto-submit when timer hits 0
+  // ─── Live Sync Spoken Speech to textInput ───
   useEffect(() => {
-    if (timeLeft === 0 && phase === 'listening') {
-      handleSubmitAnswer();
+    const liveText = (transcript + ' ' + interimTranscript).trim();
+    if (liveText) {
+      setTextInput(liveText);
     }
-  }, [timeLeft, phase]);
+  }, [transcript, interimTranscript]);
 
-  // ─── Auto-speak question when entering a new question ───
+  // ─── Auto-scroll chat ───
   useEffect(() => {
-    if (currentQuestion && !hasSpokenRef.current) {
-      hasSpokenRef.current = true;
-      speakQuestion();
-    }
-  }, [currentQIndex]);
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [conversationHistory, transcript, interimTranscript, textInput]);
 
   /**
-   * Speak the current question aloud, then transition to listening
+   * User clicks "Start Conversation" — unlocks Chrome Media & starts AI greeting
    */
-  const speakQuestion = async () => {
-    setPhase('speaking');
+  const handleStartSession = async () => {
+    setIsStarted(true);
+    try {
+      if (navigator.mediaDevices?.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(t => t.stop());
+      }
+    } catch (e) {
+      console.warn('Mic permission error:', e);
+    }
+    getAIResponse('', []);
+  };
+
+  /**
+   * Core conversation turn handler
+   */
+  const getAIResponse = async (userAnswer, history) => {
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
+
+    let updatedHistory = [...history];
+    if (userAnswer) {
+      updatedHistory = [...history, { role: 'candidate', text: userAnswer }];
+      setConversationHistory(updatedHistory);
+    }
+
+    setPhase('thinking');
     setError('');
+    setTextInput('');
     resetTranscript();
 
     try {
-      await speak(currentQuestion);
-      // After AI finishes speaking, auto-start listening
+      const response = await sendConversationTurn({
+        domain,
+        difficulty,
+        totalQuestions: questionsCount,
+        conversationHistory: updatedHistory,
+        userAnswer: userAnswer || '',
+      });
+
+      const { aiResponse, questionNumber: qNum, isComplete, evaluation } = response;
+
+      if (evaluation && userAnswer) {
+        const lastAiMsg = [...updatedHistory].reverse().find(m => m.role === 'interviewer');
+        setResponses(prev => [...prev, {
+          question: lastAiMsg?.text || 'Interview question',
+          answer: userAnswer,
+          score: evaluation.score || 5,
+          feedback: evaluation.feedback || '',
+          strengths: evaluation.strengths || [],
+          improvements: evaluation.improvements || [],
+        }]);
+      }
+
+      setQuestionNumber(qNum || 0);
+
+      const newHistory = [...updatedHistory, { role: 'interviewer', text: aiResponse }];
+      setConversationHistory(newHistory);
+
+      if (isComplete) {
+        setPhase('speaking');
+        try { await speak(aiResponse); } catch (e) { /* ignore */ }
+        setPhase('complete');
+
+        setTimeout(() => {
+          navigate('/report', {
+            state: { domain, difficulty, responses },
+          });
+        }, 2000);
+      } else {
+        // Speak AI response
+        setPhase('speaking');
+        try {
+          await speak(aiResponse);
+        } catch (e) {
+          console.warn('TTS error:', e);
+        }
+
+        // Transition to listening
+        setPhase('listening');
+        resetTranscript();
+        startListening(4000, handleSilenceTimeout);
+      }
+    } catch (err) {
+      console.error('Conversation turn failed:', err);
+      setError('Failed to connect to AI server. Type or click "Start Mic" to try again.');
       setPhase('listening');
-      startListening();
-    } catch (e) {
-      console.warn('TTS error, proceeding to listening:', e);
-      setPhase('listening');
-      startListening();
+    } finally {
+      isProcessingRef.current = false;
     }
   };
 
   /**
-   * Toggle microphone on/off
+   * Silence timeout callback
    */
-  const toggleMic = useCallback(() => {
+  const handleSilenceTimeout = () => {
+    const text = textInput.trim() || (transcript + ' ' + interimTranscript).trim() || getTranscript();
+    if (text) {
+      stopListening();
+      getAIResponse(text, conversationHistoryRef.current);
+    }
+  };
+
+  /**
+   * Manual Start/Pause Mic
+   */
+  const handleToggleMic = () => {
     if (isListening) {
       stopListening();
     } else {
-      startListening();
-      setPhase('listening');
+      resetTranscript();
+      startListening(4000, handleSilenceTimeout);
     }
-  }, [isListening, startListening, stopListening]);
+  };
 
   /**
-   * Submit the current answer for evaluation
+   * Manual Submit (Voice or Typed)
    */
-  const handleSubmitAnswer = async () => {
-    // Stop listening first
-    stopListening();
-    const finalAnswer = transcript.trim();
-
-    if (!finalAnswer) {
-      setError('Please provide an answer before submitting.');
-      setPhase('idle');
+  const handleManualSubmit = (e) => {
+    if (e) e.preventDefault();
+    const text = textInput.trim() || (transcript + ' ' + interimTranscript).trim() || getTranscript();
+    if (!text) {
+      setError('Please speak your answer or type it in the input box.');
       return;
     }
-
-    setPhase('evaluating');
-    setError('');
-
-    try {
-      const evaluation = await evaluateAnswer(currentQuestion, finalAnswer, domain);
-      
-      const response = {
-        question: currentQuestion,
-        answer: finalAnswer,
-        score: evaluation.score || 5,
-        feedback: evaluation.feedback || '',
-        strengths: evaluation.strengths || [],
-        improvements: evaluation.improvements || [],
-      };
-
-      setResponses(prev => [...prev, response]);
-      setCurrentFeedback(response);
-      setPhase('feedback');
-    } catch (err) {
-      console.error('Evaluation failed:', err);
-      // Still save the response with a default score
-      const response = {
-        question: currentQuestion,
-        answer: finalAnswer,
-        score: 5,
-        feedback: 'Evaluation unavailable — answer recorded.',
-        strengths: [],
-        improvements: [],
-      };
-      setResponses(prev => [...prev, response]);
-      setCurrentFeedback(response);
-      setPhase('feedback');
-    }
+    stopListening();
+    getAIResponse(text, conversationHistoryRef.current);
   };
 
   /**
-   * Move to the next question or finish the interview
+   * End Interview
    */
-  const handleNext = () => {
-    setCurrentFeedback(null);
-
-    if (currentQIndex < totalQuestions - 1) {
-      hasSpokenRef.current = false;
-      resetTranscript();
-      setCurrentQIndex(prev => prev + 1);
-    } else {
-      // Interview complete — navigate to report
-      const allResponses = [...responses];
-      if (currentFeedback && !responses.find(r => r.question === currentFeedback.question)) {
-        allResponses.push(currentFeedback);
-      }
-      navigate('/report', {
-        state: {
-          domain,
-          difficulty,
-          responses: allResponses,
-        },
-      });
-    }
-  };
-
-  /**
-   * Skip the current question
-   */
-  const handleSkip = () => {
+  const handleEndInterview = () => {
     stopListening();
     stopSpeaking();
-
-    const response = {
-      question: currentQuestion,
-      answer: '(Skipped)',
-      score: 0,
-      feedback: 'Question was skipped.',
-      strengths: [],
-      improvements: [],
-    };
-    setResponses(prev => [...prev, response]);
-
-    if (currentQIndex < totalQuestions - 1) {
-      hasSpokenRef.current = false;
-      resetTranscript();
-      setCurrentQIndex(prev => prev + 1);
-    } else {
-      navigate('/report', {
-        state: {
-          domain,
-          difficulty,
-          responses: [...responses, response],
-        },
-      });
-    }
+    navigate('/report', {
+      state: { domain, difficulty, responses },
+    });
   };
 
-  /**
-   * Replay the question via TTS
-   */
-  const replayQuestion = () => {
-    if (!isSpeaking) {
-      speak(currentQuestion);
-    } else {
-      stopSpeaking();
-    }
-  };
-
-  const formatTime = (seconds) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
-  };
-
-  // ─── Browser support guard ───
   if (!isSpeechSupported) {
     return (
       <div className="session-page">
         <div className="unsupported-card glass-card">
           <AlertCircle size={48} />
           <h2>Browser Not Supported</h2>
+          <p>Your browser doesn't support Web Speech API. Please use <strong>Google Chrome</strong>.</p>
+          <button className="btn-primary" onClick={() => navigate('/setup')}>Go Back</button>
+        </div>
+      </div>
+    );
+  }
+
+  // Initial user gesture screen to unlock Chrome media & microphone
+  if (!isStarted) {
+    return (
+      <div className="session-page">
+        <div className="start-card glass-card text-center">
+          <div className="start-icon">
+            <Volume2 size={48} />
+          </div>
+          <h2>Ready to Begin Your Interview?</h2>
           <p>
-            Your browser doesn't support the Web Speech API.
-            Please use <strong>Google Chrome</strong> for the best experience.
+            You will be interviewing for <strong>{domain}</strong> ({difficulty} level).
+            The AI interviewer will greet you and speak questions aloud.
           </p>
-          <button className="btn-primary" onClick={() => navigate('/setup')}>
-            Go Back
+          <button className="btn-primary start-session-btn" onClick={handleStartSession}>
+            Start Conversation <Play size={20} fill="currentColor" />
           </button>
         </div>
       </div>
@@ -274,161 +242,157 @@ const InterviewSession = () => {
 
   return (
     <div className="session-page">
-      {/* Header bar */}
+      {/* Header */}
       <div className="session-header glass-card">
         <div className="session-meta">
           <span className="badge">{domain}</span>
           <span className="badge">{difficulty}</span>
-          <span className="badge">Q {currentQIndex + 1}/{totalQuestions}</span>
+          {questionNumber > 0 && (
+            <span className="badge">Q {Math.min(questionNumber, questionsCount)}/{questionsCount}</span>
+          )}
         </div>
-        {phase === 'listening' && (
-          <div className={`timer ${timeLeft < 30 ? 'warning' : ''}`}>
-            <Clock size={20} />
-            <span>{formatTime(timeLeft)}</span>
+        <div className="header-right">
+          <div className={`status-indicator ${phase}`}>
+            <span className="status-dot"></span>
+            <span className="status-text">
+              {phase === 'greeting' && 'Starting...'}
+              {phase === 'speaking' && 'Interviewer Speaking'}
+              {phase === 'listening' && (isListening ? '🔴 Listening' : 'Ready for Answer')}
+              {phase === 'thinking' && 'Analyzing...'}
+              {phase === 'complete' && 'Complete'}
+            </span>
           </div>
-        )}
-      </div>
-
-      {/* Progress bar */}
-      <div className="progress-bar">
-        <div
-          className="progress-fill"
-          style={{ width: `${((currentQIndex + 1) / totalQuestions) * 100}%` }}
-        ></div>
-      </div>
-
-      {/* Main content area */}
-      <div className="session-main glass-card">
-
-        {/* ── Voice visualizer orb ── */}
-        <div className="voice-visualizer-container">
-          <div className={`voice-orb ${
-            phase === 'speaking' ? 'orb-speaking' :
-            phase === 'listening' && isListening ? 'orb-listening' :
-            phase === 'evaluating' ? 'orb-evaluating' :
-            'orb-idle'
-          }`}>
-            <div className="orb-ring ring-1"></div>
-            <div className="orb-ring ring-2"></div>
-            <div className="orb-ring ring-3"></div>
-            <div className="orb-core">
-              {phase === 'speaking' && <Volume2 size={32} />}
-              {phase === 'listening' && <Mic size={32} />}
-              {phase === 'evaluating' && <Loader size={32} className="spin" />}
-              {phase === 'feedback' && <span className="orb-score">{currentFeedback?.score}</span>}
-              {phase === 'idle' && <Mic size={32} />}
-            </div>
-          </div>
-          <p className="voice-status">
-            {phase === 'speaking' && 'AI is reading the question...'}
-            {phase === 'listening' && (isListening ? '🔴 Listening — speak your answer...' : 'Mic paused. Click to resume.')}
-            {phase === 'evaluating' && 'Evaluating your answer...'}
-            {phase === 'feedback' && `Score: ${currentFeedback?.score}/10`}
-            {phase === 'idle' && 'Ready to begin'}
-          </p>
-        </div>
-
-        {/* ── Question display ── */}
-        <div className="question-section">
-          <div className="question-label">
-            Question {currentQIndex + 1} of {totalQuestions}
-          </div>
-          <div className="question-text">
-            {currentQuestion}
-          </div>
-          <button className="replay-btn" onClick={replayQuestion} title="Replay question">
-            {isSpeaking ? <VolumeX size={18} /> : <Volume2 size={18} />}
-            {isSpeaking ? 'Stop' : 'Replay'}
+          <button className="end-btn" onClick={handleEndInterview} title="End Interview">
+            <LogOut size={18} />
           </button>
         </div>
+      </div>
 
-        {/* ── Live transcript area ── */}
-        {(phase === 'listening' || phase === 'idle') && (
-          <div className="transcript-area">
-            <label className="transcript-label">Your Answer</label>
-            <div className="transcript-box">
-              {transcript && <span className="final-text">{transcript}</span>}
-              {interimTranscript && <span className="interim-text"> {interimTranscript}</span>}
-              {!transcript && !interimTranscript && (
-                <span className="transcript-placeholder">
-                  {isListening
-                    ? 'Listening... Start speaking your answer.'
-                    : 'Click the microphone to start answering.'}
-                </span>
-              )}
+      {/* Progress */}
+      <div className="progress-bar">
+        <div className="progress-fill" style={{ width: `${(questionNumber / questionsCount) * 100}%` }}></div>
+      </div>
+
+      {/* Main Content */}
+      <div className="session-main">
+        {/* Avatar */}
+        <div className="avatar-section">
+          <div className={`ai-avatar ${
+            phase === 'speaking' ? 'avatar-speaking' :
+            phase === 'listening' && isListening ? 'avatar-listening' :
+            phase === 'thinking' || phase === 'greeting' ? 'avatar-thinking' :
+            'avatar-idle'
+          }`}>
+            <div className="avatar-ring ring-1"></div>
+            <div className="avatar-ring ring-2"></div>
+            <div className="avatar-ring ring-3"></div>
+            <div className="avatar-core">
+              {phase === 'speaking' && <Volume2 size={28} />}
+              {phase === 'listening' && <Mic size={28} />}
+              {(phase === 'thinking' || phase === 'greeting') && <Loader size={28} className="spin" />}
+              {phase === 'complete' && <span className="avatar-check">✓</span>}
             </div>
           </div>
-        )}
+          <span className="avatar-label">AI Interviewer</span>
+        </div>
 
-        {/* ── Feedback display ── */}
-        {phase === 'feedback' && currentFeedback && (
-          <div className="feedback-card">
-            <div className="feedback-score">
-              <span className="score-number">{currentFeedback.score}</span>
-              <span className="score-max">/10</span>
-            </div>
-            <p className="feedback-text">{currentFeedback.feedback}</p>
-            {currentFeedback.strengths.length > 0 && (
-              <div className="feedback-section">
-                <strong>✅ Strengths:</strong>
-                <ul>{currentFeedback.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul>
+        {/* Chat Transcript */}
+        <div className="conversation-area">
+          <div className="chat-scroll">
+            {conversationHistory.map((msg, i) => (
+              <div key={i} className={`chat-bubble ${msg.role === 'interviewer' ? 'bubble-ai' : 'bubble-user'}`}>
+                <span className="bubble-role">{msg.role === 'interviewer' ? '🎙️ Interviewer' : '👤 You'}</span>
+                <p className="bubble-text">{msg.text}</p>
+              </div>
+            ))}
+
+            {/* LIVE REAL-TIME BUBBLE */}
+            {phase === 'listening' && (textInput || transcript || interimTranscript) && (
+              <div className="chat-bubble bubble-user bubble-live">
+                <span className="bubble-role">👤 You {isListening ? '(speaking live... 🔴)' : '(typing...)'}</span>
+                <p className="bubble-text">
+                  {textInput || (
+                    <>
+                      {transcript && <span className="final-word">{transcript} </span>}
+                      {interimTranscript && <span className="interim-word">{interimTranscript}</span>}
+                    </>
+                  )}
+                </p>
               </div>
             )}
-            {currentFeedback.improvements.length > 0 && (
-              <div className="feedback-section">
-                <strong>💡 Improve:</strong>
-                <ul>{currentFeedback.improvements.map((s, i) => <li key={i}>{s}</li>)}</ul>
+
+            {phase === 'thinking' && (
+              <div className="chat-bubble bubble-ai bubble-thinking">
+                <span className="bubble-role">🎙️ Interviewer</span>
+                <div className="thinking-dots"><span></span><span></span><span></span></div>
               </div>
             )}
+
+            <div ref={chatEndRef} />
           </div>
-        )}
+        </div>
 
-        {/* ── Error message ── */}
-        {error && (
+        {/* Error or Mic Diagnostic */}
+        {(error || speechError) && (
           <div className="error-message">
-            <AlertCircle size={16} /> {error}
+            <AlertCircle size={16} />
+            <span>
+              {error || (speechError === 'no-speech' ? 'No voice detected. You can type your answer below or click Mic.' : `Microphone error (${speechError}). You can type below.`)}
+            </span>
           </div>
         )}
 
-        {/* ── Controls ── */}
+        {/* Voice & Text Hybrid Controls */}
         <div className="controls">
-          {(phase === 'listening' || phase === 'idle') && (
-            <>
+          {phase === 'listening' && (
+            <form onSubmit={handleManualSubmit} className="input-form">
               <button
+                type="button"
                 className={`mic-btn ${isListening ? 'active' : ''}`}
-                onClick={toggleMic}
+                onClick={handleToggleMic}
+                title={isListening ? 'Pause Mic' : 'Start Mic'}
               >
-                {isListening ? <MicOff size={22} /> : <Mic size={22} />}
-                {isListening ? 'Stop Mic' : 'Start Mic'}
+                {isListening ? <MicOff size={20} /> : <Mic size={20} />}
+                <span>{isListening ? 'Listening...' : 'Mic'}</span>
               </button>
+
+              <input
+                type="text"
+                className="chat-input"
+                placeholder={isListening ? 'Speak or type your answer here...' : 'Type or speak your answer...'}
+                value={textInput}
+                onChange={(e) => setTextInput(e.target.value)}
+              />
 
               <button
-                className="submit-btn"
-                onClick={handleSubmitAnswer}
-                disabled={!transcript.trim()}
+                type="submit"
+                className="done-btn"
+                disabled={!textInput.trim()}
               >
-                <Send size={20} />
-                Submit Answer
+                <Send size={18} />
+                Send
               </button>
-
-              <button className="skip-btn" onClick={handleSkip}>
-                <SkipForward size={20} />
-                Skip
-              </button>
-            </>
-          )}
-
-          {phase === 'feedback' && (
-            <button className="next-btn" onClick={handleNext}>
-              {currentQIndex === totalQuestions - 1 ? '📊 View Report' : 'Next Question →'}
-            </button>
+            </form>
           )}
 
           {phase === 'speaking' && (
-            <button className="skip-btn" onClick={() => { stopSpeaking(); setPhase('listening'); startListening(); }}>
-              <SkipForward size={20} />
-              Skip to Answer
-            </button>
+            <div className="speaking-indicator">
+              <Volume2 size={20} />
+              <span>Interviewer is speaking...</span>
+            </div>
+          )}
+
+          {(phase === 'thinking' || phase === 'greeting') && (
+            <div className="thinking-indicator">
+              <Loader size={20} className="spin" />
+              <span>{phase === 'greeting' ? 'Starting interview...' : 'Analyzing your answer...'}</span>
+            </div>
+          )}
+
+          {phase === 'complete' && (
+            <div className="complete-indicator">
+              <span>✅ Interview complete! Redirecting to report...</span>
+            </div>
           )}
         </div>
       </div>

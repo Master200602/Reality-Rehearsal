@@ -38,4 +38,8 @@ export const evaluateAnswer = (question, answer, domain) =>
 export const generateReport = (data) =>
   api.post('/interview/generate-report', data);
 
+// NEW: Conversational interview turn
+export const sendConversationTurn = (data) =>
+  api.post('/interview/conversation', data);
+
 export default api;
