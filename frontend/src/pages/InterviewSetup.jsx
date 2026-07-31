@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Play, ChevronRight, Briefcase, Zap, List } from 'lucide-react';
+import { Settings, Play, Briefcase, Zap, List, AlertCircle, Mic } from 'lucide-react';
+import { generateQuestions } from '../services/api';
 import './InterviewSetup.css';
 
 const domains = [
-  'Software Engineering', 'Data Science', 'Product Management', 
+  'Software Engineering', 'Data Science', 'Product Management',
   'Marketing', 'Finance', 'Healthcare', 'Education', 'General'
 ];
 
@@ -14,15 +15,32 @@ const InterviewSetup = () => {
   const [difficulty, setDifficulty] = useState('Medium');
   const [questionsCount, setQuestionsCount] = useState(5);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleStart = (e) => {
+  const handleStart = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    // Simulate API call to generate questions
-    setTimeout(() => {
+    setError('');
+
+    try {
+      // Call the real backend API to generate questions
+      const questions = await generateQuestions(domain, difficulty, questionsCount);
+
+      // Navigate to interview with the generated questions
+      navigate('/interview', {
+        state: {
+          domain,
+          difficulty,
+          questionsCount,
+          questions: Array.isArray(questions) ? questions : [],
+        },
+      });
+    } catch (err) {
+      console.error('Failed to generate questions:', err);
+      setError('Failed to generate questions. Please check your backend server is running and try again.');
+    } finally {
       setIsLoading(false);
-      navigate('/interview', { state: { domain, difficulty, questionsCount } });
-    }, 1500);
+    }
   };
 
   return (
@@ -35,11 +53,18 @@ const InterviewSetup = () => {
 
         <div className="setup-content">
           <form className="setup-form glass-card" onSubmit={handleStart}>
-            
+
+            {error && (
+              <div className="error-banner">
+                <AlertCircle size={18} />
+                <span>{error}</span>
+              </div>
+            )}
+
             <div className="form-group">
               <label><Briefcase className="label-icon" /> Select Domain</label>
               <div className="custom-select-wrapper">
-                <select 
+                <select
                   className="custom-select"
                   value={domain}
                   onChange={(e) => setDomain(e.target.value)}
@@ -72,10 +97,10 @@ const InterviewSetup = () => {
                 <span><List className="label-icon" /> Number of Questions</span>
                 <span className="count-badge">{questionsCount}</span>
               </label>
-              <input 
-                type="range" 
-                min="3" 
-                max="15" 
+              <input
+                type="range"
+                min="3"
+                max="15"
                 value={questionsCount}
                 onChange={(e) => setQuestionsCount(parseInt(e.target.value))}
                 className="custom-slider"
@@ -88,7 +113,10 @@ const InterviewSetup = () => {
 
             <button type="submit" className="btn-primary start-btn" disabled={isLoading}>
               {isLoading ? (
-                <span className="loading-spinner"></span>
+                <>
+                  <span className="loading-spinner"></span>
+                  Generating Questions...
+                </>
               ) : (
                 <>Start Session <Play size={20} fill="currentColor" /></>
               )}
@@ -116,7 +144,7 @@ const InterviewSetup = () => {
               </div>
             </div>
             <div className="preview-info">
-              <p>The AI will tailor the questions based on these settings. Make sure your microphone and camera are ready.</p>
+              <p><Mic size={16} /> Make sure your microphone is ready. The AI interviewer will speak questions aloud, and you'll answer using your voice.</p>
             </div>
           </div>
         </div>

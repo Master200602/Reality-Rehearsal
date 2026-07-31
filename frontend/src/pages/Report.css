@@ -1,13 +1,52 @@
+/* ─── Report Page ─── */
+
 .report-page {
-  max-width: 1200px;
+  max-width: 1000px;
   margin: 0 auto;
   padding: 2rem;
   animation: fadeIn 0.8s ease-out;
 }
 
+.report-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* ─── Loading State ─── */
+.loading-card {
+  max-width: 450px;
+  margin: 6rem auto;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 3rem;
+  color: var(--text-secondary);
+}
+
+.loading-card h2 {
+  color: var(--text-primary);
+  background: var(--gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Header ─── */
 .report-header {
   text-align: center;
-  margin-bottom: 3rem;
+  margin-bottom: 1rem;
 }
 
 .report-header h2 {
@@ -21,35 +60,40 @@
 
 .report-header p {
   color: var(--text-secondary);
-  font-size: 1.1rem;
+  font-size: 1.05rem;
 }
 
+/* ─── Grid ─── */
 .report-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 2rem;
-  margin-bottom: 3rem;
+  gap: 1.5rem;
 }
 
-/* Score Card */
+/* ─── Score Card ─── */
 .score-card {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
+  background: var(--glass);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  padding: 2rem;
 }
 
 .score-card h3 {
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
   width: 100%;
   text-align: left;
 }
 
 .circular-progress {
   position: relative;
-  width: 200px;
-  height: 200px;
+  width: 180px;
+  height: 180px;
   margin-bottom: 1.5rem;
 }
 
@@ -70,7 +114,6 @@
 }
 
 .circular-progress .progress {
-  stroke: url(#gradient); /* In a real app, define SVG gradient or use single color */
   stroke: var(--primary);
   transition: stroke-dasharray 1.5s ease-out;
 }
@@ -85,35 +128,44 @@
 }
 
 .score-value span {
-  font-size: 4rem;
+  font-size: 3.5rem;
   font-weight: 800;
-  color: var(--text-primary);
+  background: var(--gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .score-value small {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   color: var(--text-secondary);
 }
 
 .score-text {
   color: var(--text-secondary);
-  max-width: 80%;
+  line-height: 1.5;
+  font-size: 0.95rem;
 }
 
-/* Breakdown Card */
+/* ─── Category Breakdown ─── */
 .breakdown-card {
   display: flex;
   flex-direction: column;
+  background: var(--glass);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  padding: 2rem;
 }
 
 .breakdown-card h3 {
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
 }
 
 .bars-container {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.25rem;
   flex: 1;
   justify-content: center;
 }
@@ -121,8 +173,9 @@
 .bar-label {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
   font-weight: 500;
+  font-size: 0.95rem;
 }
 
 .bar-track {
@@ -135,10 +188,42 @@
 .bar-fill {
   height: 100%;
   border-radius: 4px;
-  box-shadow: 0 0 10px rgba(255,255,255,0.2);
+  transition: width 1.5s ease-out;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.15);
 }
 
-/* Feedback Cards */
+/* ─── Detailed Feedback ─── */
+.detailed-feedback {
+  grid-column: 1 / -1;
+  background: var(--glass);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  padding: 2rem;
+}
+
+.detailed-feedback h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.detailed-feedback p {
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+/* ─── Feedback/Recommendation Cards ─── */
+.feedback-card {
+  background: var(--glass);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  padding: 2rem;
+  grid-column: 1 / -1;
+}
+
 .feedback-card h3 {
   display: flex;
   align-items: center;
@@ -153,30 +238,174 @@
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .feedback-list li {
   display: flex;
   align-items: flex-start;
-  gap: 1rem;
+  gap: 0.75rem;
   line-height: 1.5;
   color: var(--text-secondary);
 }
 
-.bullet-warning {
-  min-width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #f59e0b;
-  margin-top: 8px;
+/* ─── Q&A Breakdown Accordion ─── */
+.qa-section {
+  margin-top: 1rem;
 }
 
-/* Actions */
+.qa-section > h3 {
+  font-size: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.qa-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.qa-item {
+  overflow: hidden;
+  background: var(--glass);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  padding: 0;
+}
+
+.qa-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  font-size: 0.95rem;
+  text-align: left;
+  color: var(--text-primary);
+  transition: background 0.2s ease;
+}
+
+.qa-header:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.qa-header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.qa-number {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--primary);
+}
+
+.qa-question-preview {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qa-header-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-shrink: 0;
+}
+
+.qa-score {
+  padding: 0.2rem 0.75rem;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.qa-score.good {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.qa-score.okay {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+}
+
+.qa-score.low {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+.qa-details {
+  padding: 0 1.5rem 1.5rem;
+  border-top: 1px solid var(--glass-border);
+  animation: slideDown 0.3s ease-out;
+}
+
+.qa-detail-row {
+  margin-top: 1rem;
+}
+
+.qa-detail-row strong {
+  display: block;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  margin-bottom: 0.4rem;
+}
+
+.qa-detail-row p {
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+.qa-answer {
+  background: rgba(17, 24, 39, 0.5);
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border-left: 3px solid var(--secondary);
+  font-style: italic;
+}
+
+.qa-detail-row ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.qa-detail-row li {
+  color: var(--text-secondary);
+  padding: 0.2rem 0;
+  padding-left: 1rem;
+  position: relative;
+}
+
+.qa-detail-row li::before {
+  content: '→';
+  position: absolute;
+  left: 0;
+  color: var(--primary);
+}
+
+/* ─── Actions ─── */
 .report-actions {
   display: flex;
   justify-content: center;
   gap: 1.5rem;
+  margin-top: 2rem;
+  padding-bottom: 3rem;
 }
 
 .btn-secondary {
@@ -192,19 +421,54 @@
   transition: var(--transition);
 }
 
-.btn-secondary:hover {
-  background: rgba(255,255,255,0.1);
+.btn-secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
 }
 
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 2rem;
+  background: var(--gradient);
+  color: #fff;
+  border-radius: 30px;
+  font-weight: 600;
+  transition: var(--transition);
+  box-shadow: var(--shadow-glow);
+}
+
+.btn-primary:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 40px rgba(0, 212, 255, 0.4);
+}
+
+/* ─── Responsive ─── */
 @media (max-width: 768px) {
   .report-grid {
     grid-template-columns: 1fr;
   }
+
+  .report-header h2 {
+    font-size: 1.8rem;
+  }
+
   .report-actions {
     flex-direction: column;
   }
+
   .btn-secondary, .btn-primary {
     width: 100%;
     justify-content: center;
+  }
+
+  .qa-question-preview {
+    max-width: 150px;
   }
 }
