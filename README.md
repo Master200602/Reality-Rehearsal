@@ -10,7 +10,8 @@
 
 ## ✨ Features
 
-- **🎯 Smart Questions** — AI-generated interview questions tailored to your domain and difficulty
+- **📄 Candidate Profile & Resume Setup** — Complete a candidate information form and upload your resume PDF to personalize the interview experience.
+- **🎯 Smart Questions** — AI-generated interview questions tailored to your domain, target role, and difficulty
 - **🎙️ Voice Interaction** — Natural speech-based Q&A using Web Speech API
 - **📊 Behavior Analysis** — Real-time posture and expression tracking via OpenCV.js + MediaPipe
 - **📈 Performance Scoring** — Detailed evaluation across technical, communication, and behavioral metrics
