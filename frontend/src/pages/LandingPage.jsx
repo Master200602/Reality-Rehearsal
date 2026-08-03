@@ -16,7 +16,6 @@ const LandingPage = () => {
 
   return (
     <div className="landing-page">
-      {/* Hero Section */}
       <section className="hero">
         <div className="hero-content">
           <h1 className="hero-title">
@@ -27,7 +26,7 @@ const LandingPage = () => {
             Practice with our AI-powered simulator featuring real-time feedback, voice interaction, and comprehensive performance analysis.
           </p>
           <div className="hero-actions">
-            <button className="btn-primary" onClick={() => navigate('/setup')}>
+            <button className="btn-primary" onClick={() => navigate('/candidate-info')}>
               Start Practicing <ChevronRight size={20} />
             </button>
           </div>
@@ -35,21 +34,20 @@ const LandingPage = () => {
         
         <div className="hero-stats glass-card">
           <div className="stat-item">
-            <span className="stat-value gradient-text">10+</span>
-            <span className="stat-label">Domains</span>
+            <span className="stat-value gradient-text">Resume</span>
+            <span className="stat-label">Tailored</span>
           </div>
           <div className="stat-item">
             <span className="stat-value gradient-text">Real-time</span>
-            <span className="stat-label">Feedback</span>
+            <span className="stat-label">AI Voice</span>
           </div>
           <div className="stat-item">
-            <span className="stat-value gradient-text">AI</span>
-            <span className="stat-label">Powered</span>
+            <span className="stat-value gradient-text">Detailed</span>
+            <span className="stat-label">PDF Report</span>
           </div>
         </div>
       </section>
 
-      {/* Features Section */}
       <section className="features">
         <h2 className="section-title">Why Reality Rehearsal?</h2>
         <div className="features-grid">
@@ -65,40 +63,37 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* How It Works Section */}
       <section className="how-it-works">
         <h2 className="section-title">How It Works</h2>
         <div className="steps-container">
           <div className="step glass-card">
             <div className="step-number">1</div>
-            <h3>Choose Domain & Difficulty</h3>
-            <p>Select your field and desired difficulty level to generate targeted questions.</p>
+            <h3>Fill Info & Upload Resume</h3>
+            <p>Provide your background, target job role, and upload your PDF resume for AI parsing.</p>
           </div>
           <div className="step-connector"></div>
           <div className="step glass-card">
             <div className="step-number">2</div>
-            <h3>Practice with AI Interviewer</h3>
-            <p>Answer questions naturally via voice while our AI analyzes your performance.</p>
+            <h3>Practice Voice Interview</h3>
+            <p>Answer dynamic voice questions tailored directly to your resume projects and technical skills.</p>
           </div>
           <div className="step-connector"></div>
           <div className="step glass-card">
             <div className="step-number">3</div>
-            <h3>Get Your Performance Report</h3>
-            <p>Review detailed scores, strengths, and areas for improvement in a downloadable report.</p>
+            <h3>Get Personalized Report</h3>
+            <p>Review comprehensive feedback, category scores, strengths, and Q&A breakdown.</p>
           </div>
         </div>
       </section>
 
-      {/* CTA Section */}
       <section className="cta glass-card">
         <h2>Ready to Ace Your Interview?</h2>
         <p>Start your AI-powered practice session today and boost your confidence.</p>
-        <button className="btn-primary" onClick={() => navigate('/setup')}>
+        <button className="btn-primary" onClick={() => navigate('/candidate-info')}>
           Start Now <ChevronRight size={20} />
         </button>
       </section>
 
-      {/* Footer */}
       <footer className="footer">
         <p>Built with ❤️ and AI</p>
       </footer>

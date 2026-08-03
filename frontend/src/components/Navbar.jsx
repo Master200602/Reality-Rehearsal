@@ -22,8 +22,8 @@ const Navbar = () => {
             Home
           </Link>
           <Link 
-            to="/setup" 
-            className={`nav-btn ${location.pathname.includes('/setup') || location.pathname.includes('/interview') ? 'active' : ''}`}
+            to="/candidate-info" 
+            className={`nav-btn ${location.pathname.includes('/candidate-info') || location.pathname.includes('/setup') || location.pathname.includes('/interview') ? 'active' : ''}`}
           >
             Start Interview
           </Link>

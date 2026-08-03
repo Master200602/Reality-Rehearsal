@@ -1,20 +1,23 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Mic, MicOff, Volume2, Loader, AlertCircle, LogOut, Send, Play } from 'lucide-react';
+import { Mic, MicOff, Volume2, Loader, AlertCircle, LogOut, Send, Play, UserCheck, ArrowRight } from 'lucide-react';
 import useSpeech from '../hooks/useSpeech';
 import { sendConversationTurn } from '../services/api';
 import './InterviewSession.css';
 
 /**
- * Conversational AI Interview Session — Hybrid Voice & Text
+ * Personalized Conversational AI Voice Interview Session
  */
 const InterviewSession = () => {
   const location = useLocation();
   const navigate = useNavigate();
+
   const {
-    domain = 'General',
+    domain = 'Software Engineering',
     difficulty = 'Medium',
     questionsCount = 5,
+    candidateProfile = null,
+    resumeText = '',
   } = location.state || {};
 
   // ─── State ───
@@ -50,7 +53,7 @@ const InterviewSession = () => {
     conversationHistoryRef.current = conversationHistory;
   }, [conversationHistory]);
 
-  // ─── Live Sync Spoken Speech to textInput ───
+  // Sync spoken transcript to textInput
   useEffect(() => {
     const liveText = (transcript + ' ' + interimTranscript).trim();
     if (liveText) {
@@ -58,13 +61,13 @@ const InterviewSession = () => {
     }
   }, [transcript, interimTranscript]);
 
-  // ─── Auto-scroll chat ───
+  // Auto-scroll chat to bottom
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [conversationHistory, transcript, interimTranscript, textInput]);
 
   /**
-   * User clicks "Start Conversation" — unlocks Chrome Media & starts AI greeting
+   * User clicks "Start Conversation" — unlocks Chrome audio and triggers AI greeting
    */
   const handleStartSession = async () => {
     setIsStarted(true);
@@ -104,6 +107,8 @@ const InterviewSession = () => {
         totalQuestions: questionsCount,
         conversationHistory: updatedHistory,
         userAnswer: userAnswer || '',
+        candidateProfile,
+        resumeText,
       });
 
       const { aiResponse, questionNumber: qNum, isComplete, evaluation } = response;
@@ -113,7 +118,7 @@ const InterviewSession = () => {
         setResponses(prev => [...prev, {
           question: lastAiMsg?.text || 'Interview question',
           answer: userAnswer,
-          score: evaluation.score || 5,
+          score: evaluation.score || 8,
           feedback: evaluation.feedback || '',
           strengths: evaluation.strengths || [],
           improvements: evaluation.improvements || [],
@@ -132,11 +137,17 @@ const InterviewSession = () => {
 
         setTimeout(() => {
           navigate('/report', {
-            state: { domain, difficulty, responses },
+            state: {
+              domain,
+              difficulty,
+              responses,
+              candidateProfile,
+              resumeText,
+            },
           });
-        }, 2000);
+        }, 2500);
       } else {
-        // Speak AI response
+        // Speak AI response aloud
         setPhase('speaking');
         try {
           await speak(aiResponse);
@@ -144,14 +155,14 @@ const InterviewSession = () => {
           console.warn('TTS error:', e);
         }
 
-        // Transition to listening
+        // Transition to listening phase
         setPhase('listening');
         resetTranscript();
-        startListening(4000, handleSilenceTimeout);
+        startListening(3500, handleSilenceTimeout);
       }
     } catch (err) {
       console.error('Conversation turn failed:', err);
-      setError('Failed to connect to AI server. Type or click "Start Mic" to try again.');
+      setError('Connection to AI interviewer timed out. Click "Start Mic" or type your response.');
       setPhase('listening');
     } finally {
       isProcessingRef.current = false;
@@ -159,7 +170,7 @@ const InterviewSession = () => {
   };
 
   /**
-   * Silence timeout callback
+   * Silence timeout callback — auto-submits spoken answer
    */
   const handleSilenceTimeout = () => {
     const text = textInput.trim() || (transcript + ' ' + interimTranscript).trim() || getTranscript();
@@ -177,18 +188,18 @@ const InterviewSession = () => {
       stopListening();
     } else {
       resetTranscript();
-      startListening(4000, handleSilenceTimeout);
+      startListening(3500, handleSilenceTimeout);
     }
   };
 
   /**
-   * Manual Submit (Voice or Typed)
+   * Manual Submit
    */
   const handleManualSubmit = (e) => {
     if (e) e.preventDefault();
     const text = textInput.trim() || (transcript + ' ' + interimTranscript).trim() || getTranscript();
     if (!text) {
-      setError('Please speak your answer or type it in the input box.');
+      setError('Please speak your answer into your mic or type an answer first.');
       return;
     }
     stopListening();
@@ -196,15 +207,44 @@ const InterviewSession = () => {
   };
 
   /**
-   * End Interview
+   * End Interview early
    */
   const handleEndInterview = () => {
     stopListening();
     stopSpeaking();
     navigate('/report', {
-      state: { domain, difficulty, responses },
+      state: {
+        domain,
+        difficulty,
+        responses,
+        candidateProfile,
+        resumeText,
+      },
     });
   };
+
+  // IF NO CANDIDATE PROFILE: Render a clear glassmorphic redirect card (NEVER A BLANK SCREEN)
+  if (!candidateProfile || !candidateProfile.fullName) {
+    return (
+      <div className="session-page">
+        <div className="start-card glass-card text-center">
+          <div className="start-icon">
+            <UserCheck size={48} />
+          </div>
+          <h2>Candidate Profile Required</h2>
+          <p>
+            Please complete your candidate details and upload your resume before starting the personalized AI interview.
+          </p>
+          <button
+            className="btn-primary start-session-btn"
+            onClick={() => navigate('/candidate-info')}
+          >
+            Go to Candidate Form <ArrowRight size={20} />
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!isSpeechSupported) {
     return (
@@ -213,13 +253,13 @@ const InterviewSession = () => {
           <AlertCircle size={48} />
           <h2>Browser Not Supported</h2>
           <p>Your browser doesn't support Web Speech API. Please use <strong>Google Chrome</strong>.</p>
-          <button className="btn-primary" onClick={() => navigate('/setup')}>Go Back</button>
+          <button className="btn-primary" onClick={() => navigate('/candidate-info')}>Go Back</button>
         </div>
       </div>
     );
   }
 
-  // Initial user gesture screen to unlock Chrome media & microphone
+  // Entry Card before unlocking audio
   if (!isStarted) {
     return (
       <div className="session-page">
@@ -229,11 +269,16 @@ const InterviewSession = () => {
           </div>
           <h2>Ready to Begin Your Interview?</h2>
           <p>
-            You will be interviewing for <strong>{domain}</strong> ({difficulty} level).
-            The AI interviewer will greet you and speak questions aloud.
+            Candidate: <strong>{candidateProfile?.fullName || 'Candidate'}</strong><br />
+            Target Role: <strong>{candidateProfile?.targetRole || domain}</strong> ({difficulty} Level)
           </p>
+          {resumeText && (
+            <div className="resume-notice">
+              <span>📄 Resume Context Loaded ({candidateProfile?.skills?.length || 0} skills identified)</span>
+            </div>
+          )}
           <button className="btn-primary start-session-btn" onClick={handleStartSession}>
-            Start Conversation <Play size={20} fill="currentColor" />
+            Start AI Voice Interview <Play size={20} fill="currentColor" />
           </button>
         </div>
       </div>
@@ -245,6 +290,7 @@ const InterviewSession = () => {
       {/* Header */}
       <div className="session-header glass-card">
         <div className="session-meta">
+          <span className="badge">{candidateProfile?.fullName || 'Candidate'}</span>
           <span className="badge">{domain}</span>
           <span className="badge">{difficulty}</span>
           {questionNumber > 0 && (
@@ -256,10 +302,10 @@ const InterviewSession = () => {
             <span className="status-dot"></span>
             <span className="status-text">
               {phase === 'greeting' && 'Starting...'}
-              {phase === 'speaking' && 'Interviewer Speaking'}
-              {phase === 'listening' && (isListening ? '🔴 Listening' : 'Ready for Answer')}
-              {phase === 'thinking' && 'Analyzing...'}
-              {phase === 'complete' && 'Complete'}
+              {phase === 'speaking' && 'AI Interviewer Speaking'}
+              {phase === 'listening' && (isListening ? '🔴 Listening to your voice' : 'Mic Paused')}
+              {phase === 'thinking' && 'AI Evaluating...'}
+              {phase === 'complete' && 'Interview Complete'}
             </span>
           </div>
           <button className="end-btn" onClick={handleEndInterview} title="End Interview">
@@ -293,7 +339,7 @@ const InterviewSession = () => {
               {phase === 'complete' && <span className="avatar-check">✓</span>}
             </div>
           </div>
-          <span className="avatar-label">AI Interviewer</span>
+          <span className="avatar-label">AI Senior Interviewer</span>
         </div>
 
         {/* Chat Transcript */}
@@ -301,15 +347,15 @@ const InterviewSession = () => {
           <div className="chat-scroll">
             {conversationHistory.map((msg, i) => (
               <div key={i} className={`chat-bubble ${msg.role === 'interviewer' ? 'bubble-ai' : 'bubble-user'}`}>
-                <span className="bubble-role">{msg.role === 'interviewer' ? '🎙️ Interviewer' : '👤 You'}</span>
+                <span className="bubble-role">{msg.role === 'interviewer' ? '🎙️ AI Interviewer' : `👤 ${candidateProfile?.fullName || 'You'}`}</span>
                 <p className="bubble-text">{msg.text}</p>
               </div>
             ))}
 
-            {/* LIVE REAL-TIME BUBBLE */}
+            {/* LIVE REAL-TIME WORD-BY-WORD BUBBLE */}
             {phase === 'listening' && (textInput || transcript || interimTranscript) && (
               <div className="chat-bubble bubble-user bubble-live">
-                <span className="bubble-role">👤 You {isListening ? '(speaking live... 🔴)' : '(typing...)'}</span>
+                <span className="bubble-role">👤 {candidateProfile?.fullName || 'You'} {isListening ? '(speaking live... 🔴)' : '(typing...)'}</span>
                 <p className="bubble-text">
                   {textInput || (
                     <>
@@ -323,7 +369,7 @@ const InterviewSession = () => {
 
             {phase === 'thinking' && (
               <div className="chat-bubble bubble-ai bubble-thinking">
-                <span className="bubble-role">🎙️ Interviewer</span>
+                <span className="bubble-role">🎙️ AI Interviewer</span>
                 <div className="thinking-dots"><span></span><span></span><span></span></div>
               </div>
             )}
@@ -332,17 +378,17 @@ const InterviewSession = () => {
           </div>
         </div>
 
-        {/* Error or Mic Diagnostic */}
+        {/* Error Diagnostic */}
         {(error || speechError) && (
           <div className="error-message">
             <AlertCircle size={16} />
             <span>
-              {error || (speechError === 'no-speech' ? 'No voice detected. You can type your answer below or click Mic.' : `Microphone error (${speechError}). You can type below.`)}
+              {error || (speechError === 'no-speech' ? 'No voice detected. Type your response below or click Mic.' : `Microphone event (${speechError}). Type or click Mic.`)}
             </span>
           </div>
         )}
 
-        {/* Voice & Text Hybrid Controls */}
+        {/* Controls */}
         <div className="controls">
           {phase === 'listening' && (
             <form onSubmit={handleManualSubmit} className="input-form">
@@ -370,7 +416,7 @@ const InterviewSession = () => {
                 disabled={!textInput.trim()}
               >
                 <Send size={18} />
-                Send
+                Send Answer
               </button>
             </form>
           )}
@@ -378,14 +424,14 @@ const InterviewSession = () => {
           {phase === 'speaking' && (
             <div className="speaking-indicator">
               <Volume2 size={20} />
-              <span>Interviewer is speaking...</span>
+              <span>AI Interviewer is speaking aloud...</span>
             </div>
           )}
 
           {(phase === 'thinking' || phase === 'greeting') && (
             <div className="thinking-indicator">
               <Loader size={20} className="spin" />
-              <span>{phase === 'greeting' ? 'Starting interview...' : 'Analyzing your answer...'}</span>
+              <span>{phase === 'greeting' ? 'Starting personalized interview...' : 'Analyzing your answer with resume context...'}</span>
             </div>
           )}
 

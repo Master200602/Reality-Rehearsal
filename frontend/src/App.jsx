@@ -1,7 +1,7 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import LandingPage from './pages/LandingPage';
-import InterviewSetup from './pages/InterviewSetup';
+import CandidateInfo from './pages/CandidateInfo';
 import InterviewSession from './pages/InterviewSession';
 import Report from './pages/Report';
 import './App.css';
@@ -14,7 +14,8 @@ function App() {
         <main className="main-content">
           <Routes>
             <Route path="/" element={<LandingPage />} />
-            <Route path="/setup" element={<InterviewSetup />} />
+            <Route path="/candidate-info" element={<CandidateInfo />} />
+            <Route path="/setup" element={<Navigate to="/candidate-info" replace />} />
             <Route path="/interview" element={<InterviewSession />} />
             <Route path="/report" element={<Report />} />
           </Routes>

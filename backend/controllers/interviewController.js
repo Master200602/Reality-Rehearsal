@@ -1,44 +1,138 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// ─── Helper: extract JSON from Gemini response ───
-function extractJSON(responseText) {
-  let jsonStr = responseText;
-  if (jsonStr.includes('```json')) {
-    jsonStr = jsonStr.split('```json')[1].split('```')[0].trim();
-  } else if (jsonStr.includes('```')) {
-    jsonStr = jsonStr.split('```')[1].split('```')[0].trim();
-  }
-  return JSON.parse(jsonStr);
-}
-
-// ─── Existing: Generate Questions ───
+// Controller functions
 export const generateQuestions = async (req, res, next) => {
   try {
-    const { domain, difficulty, count } = req.body;
-    
+    const {
+      domain = 'Software Engineering',
+      difficulty = 'Medium',
+      totalQuestions = 5,
+      conversationHistory = [],
+      userAnswer = '',
+      candidateProfile = {},
+      resumeText = '',
+    } = req.body;
+
+    const candidateName = candidateProfile?.fullName || 'Candidate';
+    const targetRole = candidateProfile?.targetRole || domain;
+    const skillsList = candidateProfile?.skills?.join(', ') || candidateProfile?.branch || 'Technical Skills';
+    const projectsList = candidateProfile?.projects?.join(', ') || 'Projects listed on resume';
+    const education = candidateProfile?.education || candidateProfile?.college || 'Higher Education';
+
+    const interviewerMessages = conversationHistory.filter(m => m.role === 'interviewer');
+    const questionNumber = interviewerMessages.length + (userAnswer ? 1 : 0);
+
+    // If GEMINI_API_KEY is not configured in .env, use an intelligent rule-based verifier for testing
     if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === 'your_gemini_api_key_here') {
-      console.warn('GEMINI_API_KEY is not set or invalid. Returning mock data.');
-      return res.status(200).json([
-        { id: '1', question: `Mock Question 1 for ${domain}?`, expectedTopics: ['Topic A', 'Topic B'], difficulty },
-        { id: '2', question: `Mock Question 2 for ${domain}?`, expectedTopics: ['Topic C'], difficulty }
-      ]);
+      console.warn('GEMINI_API_KEY is not set in backend/.env. Using strict intelligent rule-based evaluation fallback.');
+
+      if (questionNumber === 0) {
+        return res.status(200).json({
+          aiResponse: `Hello ${candidateName}! Welcome to your ${targetRole} technical interview. I've reviewed your resume highlighting skills in ${skillsList}. To start our session, please walk me through one of your key projects, such as ${projectsList}, and explain your specific role and technical stack.`,
+          questionNumber: 1,
+          isComplete: false,
+          evaluation: null
+        });
+      }
+
+      // Strict heuristic answer verification for mock mode
+      const cleanAnswer = userAnswer.trim().toLowerCase();
+      const isShort = cleanAnswer.split(/\s+/).length < 5;
+      const isGibberish = /^(asdf|qwer|test|bla|xyz|fake|idk|dunno|aaaa|1234|abc)$/i.test(cleanAnswer) || cleanAnswer.length < 8;
+      const hasContradiction = cleanAnswer.includes('html is programming') || cleanAnswer.includes('css database') || cleanAnswer.includes('fake');
+
+      let turnScore = 7;
+      let turnFeedback = "Reasonable response, though additional technical depth would improve your score.";
+      let aiText = "";
+
+      if (isShort || isGibberish || hasContradiction) {
+        turnScore = 2;
+        turnFeedback = "Answer lacked technical substance, was too brief, or contained incorrect statements.";
+        aiText = `Hold on, ${candidateName}. That response is quite vague or technically inaccurate. In a real technical interview for a ${targetRole}, giving vague or incorrect answers will hurt your evaluation. Let's focus on your actual experience — can you explain the technical architecture of your project (${projectsList}) step-by-step?`;
+      } else {
+        turnScore = 8;
+        turnFeedback = "Solid technical explanation covering relevant principles.";
+        if (questionNumber >= totalQuestions) {
+          aiText = `Thank you, ${candidateName}. That concludes our ${targetRole} technical interview today. I've recorded your responses and analyzed your technical accuracy. I am now compiling your detailed performance report.`;
+        } else {
+          aiText = `Good explanation, ${candidateName}. Let's dive deeper into your resume skills (${skillsList}). When building scale applications for ${targetRole}, how do you handle state management, performance optimization, and error handling under high load?`;
+        }
+      }
+
+      return res.status(200).json({
+        aiResponse: aiText,
+        questionNumber: Math.min(questionNumber + 1, totalQuestions),
+        isComplete: questionNumber >= totalQuestions,
+        evaluation: {
+          score: turnScore,
+          feedback: turnFeedback,
+          strengths: turnScore > 5 ? ["Clear communication"] : [],
+          improvements: turnScore <= 5 ? ["Provide real technical details rather than generic answers", "Ensure accurate technical concepts"] : ["Elaborate on quantitative results"]
+        }
+      });
     }
 
+    // LIVE GEMINI AI ENGINE — Strict Technical Interviewer Prompt
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-    const prompt = `Generate ${count} ${difficulty} interview questions for the domain of ${domain}. 
-Return ONLY a valid JSON array where each object has:
-- id: a unique string
-- question: the question text
-- expectedTopics: an array of short strings representing expected topics in the answer
-- difficulty: the difficulty level`;
+    const systemPrompt = `You are a Strict Senior Technical Interviewer at a top tier tech company conducting a 1-on-1 interview.
+
+CANDIDATE PROFILE:
+- Full Name: ${candidateName}
+- Target Job Role: ${targetRole}
+- Interview Domain: ${domain}
+- Difficulty Level: ${difficulty}
+- Education: ${education}
+- Extracted Skills: ${skillsList}
+- Notable Projects: ${projectsList}
+
+RESUME CONTEXT:
+"""
+${resumeText ? resumeText.slice(0, 3000) : 'No resume file uploaded.'}
+"""
+
+CRITICAL EVALUATION & BEHAVIOR RULES:
+1. STRICT VERIFICATION: Carefully analyze the candidate's last answer. Do NOT praise or validate fake, vague, incorrect, or gibberish answers.
+2. CALL OUT INCORRECT CLAIMS: If the candidate makes false technical claims (e.g. calling HTML a programming language, claiming to build complex ML models with 2 lines of code without explanation, or giving evasive fluff), IMMEDIATELY AND DIRECTLY CORRECT THEM in your spoken response. Explain why it is incorrect and challenge them to answer properly.
+3. SCORING RUBRIC (1-10):
+   - 1-3: Fake, incorrect, evasive, or gibberish answer.
+   - 4-6: Superficial or generic answer lacking technical depth or architecture.
+   - 7-8: Good, accurate technical answer with solid reasoning.
+   - 9-10: Exceptional, highly detailed answer with deep system knowledge and STAR methodology.
+4. CONVERSATIONAL TONE: Address ${candidateName} naturally. Sound like an actual expert interviewer — demanding, articulate, professional, and clear.
+5. QUESTION PROGRESSION: Total questions: ${totalQuestions}. Current turn index: ${questionNumber + 1}. If final turn, thank the candidate and state the interview is wrapping up.
+
+Return ONLY a valid JSON object:
+{
+  "aiResponse": "Your exact spoken response to the candidate. If their answer was fake/wrong, correct them directly and ask a sharp follow-up. If good, acknowledge key points and ask the next technical/scenario question.",
+  "questionNumber": ${Math.min(questionNumber + (userAnswer ? 1 : 0), totalQuestions)},
+  "isComplete": ${questionNumber >= totalQuestions ? 'true' : 'false'},
+  "evaluation": ${userAnswer ? `{
+    "score": number 1-10 based on strict rubric,
+    "feedback": "strict, honest 1-2 sentence assessment of candidate's answer correctness",
+    "strengths": ["array of genuine technical strengths"],
+    "improvements": ["array of specific technical gaps identified in answer"]
+  }` : 'null'}
+}`;
+
+    const conversationContext = conversationHistory.map(m => `${m.role.toUpperCase()}: ${m.text}`).join('\n');
+    const fullUserPrompt = `${systemPrompt}\n\nCONVERSATION HISTORY:\n${conversationContext || 'None (Initial turn)'}\n\nCANDIDATE SPOKEN ANSWER TO EVALUATE:\n"${userAnswer || 'None (Interview start)'}"`;
 
     const result = await model.generateContent(prompt);
-    const questions = extractJSON(result.response.text());
+    const responseText = result.response.text();
+
+    // Attempt to extract JSON if formatted with backticks
+    let jsonStr = responseText;
+    if (jsonStr.includes('\`\`\`json')) {
+      jsonStr = jsonStr.split('\`\`\`json')[1].split('\`\`\`')[0].trim();
+    } else if (jsonStr.includes('\`\`\`')) {
+      jsonStr = jsonStr.split('\`\`\`')[1].split('\`\`\`')[0].trim();
+    }
+
+    const questions = JSON.parse(jsonStr);
     res.status(200).json(questions);
   } catch (error) {
-    console.error('Error generating questions:', error);
     next(error);
   }
 };
@@ -74,63 +168,134 @@ Return ONLY a valid JSON object with the following structure:
 }`;
 
     const result = await model.generateContent(prompt);
-    const evaluation = extractJSON(result.response.text());
+    const responseText = result.response.text();
+
+    let jsonStr = responseText;
+    if (jsonStr.includes('\`\`\`json')) {
+      jsonStr = jsonStr.split('\`\`\`json')[1].split('\`\`\`')[0].trim();
+    } else if (jsonStr.includes('\`\`\`')) {
+      jsonStr = jsonStr.split('\`\`\`')[1].split('\`\`\`')[0].trim();
+    }
+
+    const evaluation = JSON.parse(jsonStr);
     res.status(200).json(evaluation);
   } catch (error) {
-    console.error('Error evaluating answer:', error);
     next(error);
   }
 };
 
-// ─── Existing: Generate Report ───
 export const generateReport = async (req, res, next) => {
   try {
-    const { domain, difficulty, responses, behaviorMetrics } = req.body;
+    const {
+      domain = 'General',
+      difficulty = 'Medium',
+      responses = [],
+      candidateProfile = {},
+      resumeText = '',
+    } = req.body;
+
+    const candidateName = candidateProfile?.fullName || 'Candidate';
+    const targetRole = candidateProfile?.targetRole || domain;
+
+    let totalScoreSum = 0;
+    let validAnswersCount = 0;
+    let lowScoreCount = 0;
+
+    responses.forEach(r => {
+      if (typeof r.score === 'number') {
+        totalScoreSum += r.score;
+        validAnswersCount++;
+        if (r.score <= 4) lowScoreCount++;
+      }
+    });
+
+    const avgTurnScore = validAnswersCount > 0 ? (totalScoreSum / validAnswersCount) : 7.5;
+    const computedOverallScore = Math.min(100, Math.max(15, Math.round(avgTurnScore * 10)));
 
     if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === 'your_gemini_api_key_here') {
-      console.warn('GEMINI_API_KEY is not set. Returning mock report.');
+      console.warn('GEMINI_API_KEY is not set. Returning mathematical report based on answer evaluations.');
       return res.status(200).json({
-        overallScore: 8,
-        summary: "Mock report summary for your performance.",
+        candidateName,
+        targetRole,
+        overallScore: computedOverallScore,
+        summary: lowScoreCount > 0
+          ? `${candidateName} attempted the ${targetRole} interview, but several answers lacked technical accuracy or contained superficial claims.`
+          : `${candidateName} demonstrated solid technical foundation for ${targetRole}, providing structured answers across key domain topics.`,
         categoryScores: {
-          technical: 8,
-          communication: 7,
-          confidence: 9,
-          clarity: 8
+          technical: Math.max(20, Math.round(computedOverallScore * 0.95)),
+          communication: Math.max(30, Math.round(computedOverallScore * 1.05)),
+          confidence: Math.max(25, Math.round(computedOverallScore * 0.98)),
+          clarity: Math.max(20, Math.round(computedOverallScore * 1.02))
         },
-        detailedFeedback: "You did well but could improve in some areas.",
-        recommendations: ["Study more mock questions", "Practice speaking clearly"]
+        strengths: lowScoreCount === 0 ? [
+          `Clear communication regarding ${candidateProfile?.skills?.slice(0, 2).join(', ') || 'core concepts'}`,
+          "Good response structure and candidate presentation"
+        ] : [
+          "Completed interview session under timed conditions"
+        ],
+        improvements: [
+          "Ensure all technical claims are accurate and verifiable",
+          "Provide concrete architectural details and code-level explanations rather than generic fluff",
+          "Practice explaining core computer science and framework fundamentals"
+        ],
+        recommendations: [
+          `Review core technical concepts required for ${targetRole}`,
+          "Practice mock technical interviews with focus on accuracy and depth"
+        ]
       });
     }
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-    const prompt = `Generate a comprehensive interview performance report based on the following data:
-Domain: ${domain}
-Difficulty: ${difficulty}
-Responses: ${JSON.stringify(responses)}
-Behavioral Metrics: ${JSON.stringify(behaviorMetrics)}
+    const prompt = `Generate a strict, honest interview performance report for candidate "${candidateName}" who interviewed for "${targetRole}" (${domain}, ${difficulty} level).
 
-Return ONLY a valid JSON object with the following structure:
+CANDIDATE DETAILS:
+- Name: ${candidateName}
+- Target Role: ${targetRole}
+- Resume Skills: ${JSON.stringify(candidateProfile?.skills || [])}
+
+INTERVIEW QUESTIONS, SPOKEN ANSWERS & EVALUATIONS:
+${JSON.stringify(responses, null, 2)}
+
+COMPUTED AVERAGE SCORE FROM ANSWERS: ${computedOverallScore}/100
+
+STRICT REPORT GENERATION RULES:
+1. Be completely honest. If candidate gave fake, vague, or incorrect answers, reflect that in low category scores and constructive feedback.
+2. Overall score must closely align with computed score (${computedOverallScore}/100).
+3. Provide 3 specific strengths, 3 clear areas for improvement, and 3 actionable preparation recommendations for ${targetRole}.
+
+Return ONLY a valid JSON object:
 {
-  "overallScore": an overall score from 1 to 10,
-  "summary": "a brief executive summary of the performance",
+  "candidateName": "${candidateName}",
+  "targetRole": "${targetRole}",
+  "overallScore": ${computedOverallScore},
+  "summary": "2-3 sentence honest executive summary",
   "categoryScores": {
-    "technical": score 1-10,
-    "communication": score 1-10,
-    "confidence": score 1-10,
-    "clarity": score 1-10
+    "technical": score 1-100,
+    "communication": score 1-100,
+    "confidence": score 1-100,
+    "clarity": score 1-100
   },
-  "detailedFeedback": "detailed constructive feedback paragraph",
-  "recommendations": ["array", "of", "actionable", "recommendations"]
+  "strengths": ["array of 3 genuine strengths"],
+  "improvements": ["array of 3 areas for improvement"],
+  "recommendations": ["array of 3 recommendations"]
 }`;
 
     const result = await model.generateContent(prompt);
-    const report = extractJSON(result.response.text());
+    const responseText = result.response.text();
+
+    let jsonStr = responseText;
+    if (jsonStr.includes('\`\`\`json')) {
+      jsonStr = jsonStr.split('\`\`\`json')[1].split('\`\`\`')[0].trim();
+    } else if (jsonStr.includes('\`\`\`')) {
+      jsonStr = jsonStr.split('\`\`\`')[1].split('\`\`\`')[0].trim();
+    }
+
+    const report = JSON.parse(jsonStr);
     res.status(200).json(report);
   } catch (error) {
-    console.error('Error generating report:', error);
+    console.error('Error generating detailed report:', error);
     next(error);
   }
 };

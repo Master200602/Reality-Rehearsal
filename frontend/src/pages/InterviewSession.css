@@ -1,6 +1,4 @@
-/* ═══════════════════════════════════════════════════════════════
-   Conversational AI Interview Session — Styles
-   ═══════════════════════════════════════════════════════════════ */
+/* Conversational AI Voice Interview Session Styles */
 
 .session-page {
   padding: 1.5rem 2rem;
@@ -13,7 +11,7 @@
   animation: fadeIn 0.6s ease-out;
 }
 
-/* ─── Header ─── */
+/* Header */
 .session-header {
   display: flex;
   justify-content: space-between;
@@ -105,7 +103,7 @@
   background: rgba(239, 68, 68, 0.15);
 }
 
-/* ─── Progress Bar ─── */
+/* Progress Bar */
 .progress-bar {
   height: 3px;
   background: var(--bg-tertiary);
@@ -119,7 +117,7 @@
   transition: width 0.8s ease;
 }
 
-/* ─── Main Content ─── */
+/* Main Content */
 .session-main {
   flex: 1;
   display: flex;
@@ -128,7 +126,7 @@
   min-height: 0;
 }
 
-/* ─── AI Avatar ─── */
+/* AI Avatar */
 .avatar-section {
   display: flex;
   flex-direction: column;
@@ -139,16 +137,16 @@
 
 .ai-avatar {
   position: relative;
-  width: 100px;
-  height: 100px;
+  width: 90px;
+  height: 90px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .avatar-core {
-  width: 56px;
-  height: 56px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   background: var(--bg-secondary);
   border: 2px solid var(--glass-border);
@@ -171,11 +169,11 @@
   transition: all 0.5s ease;
 }
 
-.avatar-ring.ring-1 { width: 72px; height: 72px; }
-.avatar-ring.ring-2 { width: 86px; height: 86px; }
-.avatar-ring.ring-3 { width: 100px; height: 100px; }
+.avatar-ring.ring-1 { width: 66px; height: 66px; }
+.avatar-ring.ring-2 { width: 78px; height: 78px; }
+.avatar-ring.ring-3 { width: 90px; height: 90px; }
 
-/* Speaking — cyan/blue pulse */
+/* Speaking */
 .avatar-speaking .avatar-core {
   background: linear-gradient(135deg, rgba(0, 212, 255, 0.15), rgba(139, 92, 246, 0.15));
   border-color: var(--primary);
@@ -194,7 +192,7 @@
   animation: avatarPulse 1.5s ease-in-out 0.6s infinite;
 }
 
-/* Listening — red/pink pulse */
+/* Listening */
 .avatar-listening .avatar-core {
   background: linear-gradient(135deg, rgba(236, 72, 153, 0.15), rgba(239, 68, 68, 0.15));
   border-color: var(--accent);
@@ -208,12 +206,8 @@
   border-color: rgba(236, 72, 153, 0.2);
   animation: avatarPulse 1s ease-in-out 0.2s infinite;
 }
-.avatar-listening .ring-3 {
-  border-color: rgba(236, 72, 153, 0.08);
-  animation: avatarPulse 1s ease-in-out 0.4s infinite;
-}
 
-/* Thinking — purple spin */
+/* Thinking */
 .avatar-thinking .avatar-core {
   background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(236, 72, 153, 0.15));
   border-color: var(--secondary);
@@ -224,23 +218,9 @@
   border-top-color: var(--secondary);
   animation: avatarSpin 1.2s linear infinite;
 }
-.avatar-thinking .ring-2 {
-  border-color: rgba(139, 92, 246, 0.1);
-  border-bottom-color: var(--secondary);
-  animation: avatarSpin 1.8s linear infinite reverse;
-}
-
-/* Idle */
-.avatar-idle .avatar-core {
-  border-color: var(--glass-border);
-}
-
-.avatar-check {
-  font-size: 1.5rem;
-}
 
 .avatar-label {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 1.5px;
@@ -251,13 +231,12 @@
   animation: avatarSpin 1s linear infinite;
 }
 
-/* ─── Conversation Area ─── */
+/* Conversation Area */
 .conversation-area {
   flex: 1;
   min-height: 0;
   background: var(--glass);
   backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius);
   overflow: hidden;
@@ -265,8 +244,8 @@
 
 .chat-scroll {
   height: 100%;
-  min-height: 300px;
-  max-height: 420px;
+  min-height: 280px;
+  max-height: 380px;
   overflow-y: auto;
   padding: 1.25rem;
   display: flex;
@@ -274,18 +253,6 @@
   gap: 1rem;
 }
 
-.chat-scroll::-webkit-scrollbar {
-  width: 4px;
-}
-.chat-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-.chat-scroll::-webkit-scrollbar-thumb {
-  background: var(--glass-border);
-  border-radius: 2px;
-}
-
-/* ─── Chat Bubbles ─── */
 .chat-bubble {
   max-width: 85%;
   padding: 0.85rem 1.1rem;
@@ -312,36 +279,38 @@
   background: rgba(236, 72, 153, 0.12);
   box-shadow: 0 0 20px rgba(236, 72, 153, 0.25);
   animation: pulseLive 1.5s infinite;
-  min-height: 50px;
+  min-height: 48px;
 }
 
 .final-word {
   color: #ffffff;
   font-weight: 600;
-  font-size: 1.05rem;
 }
 
 .interim-word {
   color: #00d4ff;
   font-weight: 700;
   font-style: italic;
-  font-size: 1.05rem;
-  text-shadow: 0 0 8px rgba(0, 212, 255, 0.5);
   border-bottom: 2px solid #00d4ff;
 }
 
-.listening-prompt {
-  color: rgba(255, 255, 255, 0.6);
-  font-style: italic;
+.bubble-role {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  margin-bottom: 0.35rem;
+  font-weight: 600;
+}
+
+.bubble-text {
   font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+  margin: 0;
 }
 
-@keyframes pulseLive {
-  0%, 100% { border-color: rgba(236, 72, 153, 0.5); box-shadow: 0 0 15px rgba(236, 72, 153, 0.2); }
-  50% { border-color: rgba(236, 72, 153, 0.9); box-shadow: 0 0 25px rgba(236, 72, 153, 0.4); }
-}
-
-/* Thinking dots */
 .bubble-thinking {
   padding: 0.85rem 1.5rem;
 }
@@ -361,28 +330,10 @@
   animation: dotBounce 1.4s ease-in-out infinite;
 }
 
-.thinking-dots span:nth-child(2) {
-  animation-delay: 0.2s;
-}
+.thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+.thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
 
-.thinking-dots span:nth-child(3) {
-  animation-delay: 0.4s;
-}
-
-/* ─── Error ─── */
-.error-message {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #ef4444;
-  font-size: 0.85rem;
-  padding: 0.6rem 1rem;
-  background: rgba(239, 68, 68, 0.06);
-  border: 1px solid rgba(239, 68, 68, 0.15);
-  border-radius: 10px;
-}
-
-/* ─── Controls Bar ─── */
+/* Controls Bar */
 .input-form {
   display: flex;
   align-items: center;
@@ -420,22 +371,24 @@
   min-height: 56px;
 }
 
-.mic-indicator {
+.mic-btn {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-  padding: 0.5rem 1rem;
+  gap: 0.4rem;
+  padding: 0.6rem 1.1rem;
   border-radius: 30px;
-  background: rgba(239, 68, 68, 0.06);
-  border: 1px solid rgba(239, 68, 68, 0.15);
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: var(--text-secondary);
+  transition: var(--transition);
 }
 
-.mic-indicator.active {
+.mic-btn.active {
   color: #ef4444;
-  border-color: rgba(239, 68, 68, 0.3);
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.15);
   animation: pulse 2s infinite;
 }
 
@@ -455,7 +408,7 @@
 
 .done-btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0, 212, 255, 0.3);
+  box-shadow: 0 8px 25px rgba(0, 212, 255, 0.35);
 }
 
 .done-btn:disabled {
@@ -474,26 +427,30 @@
   color: var(--text-secondary);
 }
 
-.speaking-indicator {
-  color: var(--primary);
+.speaking-indicator { color: var(--primary); }
+.thinking-indicator { color: var(--secondary); }
+.complete-indicator { color: #10b981; }
+
+.error-message {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #ef4444;
+  font-size: 0.85rem;
+  padding: 0.6rem 1rem;
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.15);
+  border-radius: 10px;
 }
 
-.thinking-indicator {
-  color: var(--secondary);
-}
-
-.complete-indicator {
-  color: #10b981;
-}
-
-/* ─── Start Card (User Gesture Entry) ─── */
+/* Start Card Entry */
 .start-card {
   max-width: 520px;
-  margin: 4rem auto;
+  margin: 3rem auto;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.5rem;
+  gap: 1.25rem;
   padding: 3rem 2rem;
   background: var(--glass);
   backdrop-filter: blur(20px);
@@ -503,8 +460,8 @@
 }
 
 .start-icon {
-  width: 80px;
-  height: 80px;
+  width: 76px;
+  height: 76px;
   border-radius: 50%;
   background: rgba(0, 212, 255, 0.1);
   border: 1px solid rgba(0, 212, 255, 0.3);
@@ -515,9 +472,14 @@
   box-shadow: 0 0 20px rgba(0, 212, 255, 0.2);
 }
 
-.start-card h2 {
-  color: var(--text-primary);
-  font-size: 1.8rem;
+.resume-notice {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #10b981;
+  padding: 0.4rem 1rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
 }
 
 .start-session-btn {
@@ -539,7 +501,6 @@
   box-shadow: 0 10px 30px rgba(0, 212, 255, 0.4);
 }
 
-/* ─── Animations ─── */
 @keyframes avatarPulse {
   0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
   50% { transform: translate(-50%, -50%) scale(1.12); opacity: 0.5; }
@@ -551,58 +512,16 @@
 }
 
 @keyframes bubbleIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes dotBounce {
-  0%, 80%, 100% {
-    transform: scale(0.6);
-    opacity: 0.4;
-  }
-  40% {
-    transform: scale(1);
-    opacity: 1;
-  }
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
 }
 
-/* ─── Responsive ─── */
-@media (max-width: 768px) {
-  .session-page {
-    padding: 0.75rem;
-  }
-
-  .ai-avatar {
-    width: 80px;
-    height: 80px;
-  }
-
-  .avatar-core {
-    width: 44px;
-    height: 44px;
-  }
-
-  .avatar-ring.ring-1 { width: 58px; height: 58px; }
-  .avatar-ring.ring-2 { width: 70px; height: 70px; }
-  .avatar-ring.ring-3 { width: 80px; height: 80px; }
-
-  .chat-bubble {
-    max-width: 92%;
-  }
-
-  .controls {
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
-  .done-btn {
-    width: 100%;
-    justify-content: center;
-  }
+@keyframes pulseLive {
+  0%, 100% { border-color: rgba(236, 72, 153, 0.5); box-shadow: 0 0 15px rgba(236, 72, 153, 0.2); }
+  50% { border-color: rgba(236, 72, 153, 0.9); box-shadow: 0 0 25px rgba(236, 72, 153, 0.4); }
 }

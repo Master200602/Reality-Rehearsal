@@ -12,28 +12,23 @@ import { useState, useRef, useCallback, useEffect } from 'react';
  * 6. speak / stopSpeaking
  */
 const useSpeech = () => {
-  // ─── Speech-to-Text state ───
   const [transcript, setTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [speechError, setSpeechError] = useState('');
-
-  // ─── Text-to-Speech state ───
   const [isSpeaking, setIsSpeaking] = useState(false);
 
-  // ─── Refs ───
   const recognitionRef = useRef(null);
   const isAbortedRef = useRef(false);
   const finalTranscriptRef = useRef('');
   const shouldListenRef = useRef(false);
   const silenceTimerRef = useRef(null);
   const silenceCallbackRef = useRef(null);
-  const silenceTimeoutMsRef = useRef(3000);
+  const silenceTimeoutMsRef = useRef(3500);
   const hasSpokenWordsRef = useRef(false);
   const isSpeakingRef = useRef(false);
   const ttsKeepAliveRef = useRef(null);
 
-  // ─── Browser support check ───
   const SpeechRecognition = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
   const isSpeechSupported = !!SpeechRecognition && typeof window !== 'undefined' && !!window.speechSynthesis;
 
@@ -41,9 +36,6 @@ const useSpeech = () => {
     isSpeakingRef.current = isSpeaking;
   }, [isSpeaking]);
 
-  /**
-   * 1. Reset silence timer
-   */
   const resetSilenceTimer = useCallback(() => {
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
@@ -52,16 +44,13 @@ const useSpeech = () => {
     if (hasSpokenWordsRef.current && silenceCallbackRef.current) {
       silenceTimerRef.current = setTimeout(() => {
         if (silenceCallbackRef.current && shouldListenRef.current) {
-          console.log('[Speech] Silence detected, triggering callback...');
+          console.log('[Speech] Silence detected, triggering auto-submit...');
           silenceCallbackRef.current();
         }
       }, silenceTimeoutMsRef.current);
     }
   }, []);
 
-  /**
-   * 2. Safely stop existing recognition instance
-   */
   const killExistingRecognition = useCallback(() => {
     shouldListenRef.current = false;
     isAbortedRef.current = true;
@@ -83,9 +72,6 @@ const useSpeech = () => {
     }
   }, []);
 
-  /**
-   * 3. Initialize SpeechRecognition instance
-   */
   const initRecognition = useCallback(() => {
     if (!SpeechRecognition) return null;
 
@@ -150,10 +136,7 @@ const useSpeech = () => {
     return recognition;
   }, [SpeechRecognition, resetSilenceTimer]);
 
-  /**
-   * 4. Start listening for speech (depends on initRecognition and killExistingRecognition)
-   */
-  const startListening = useCallback((silenceTimeoutMs = 3000, onSilenceTimeout = null) => {
+  const startListening = useCallback((silenceTimeoutMs = 3500, onSilenceTimeout = null) => {
     if (!SpeechRecognition) {
       console.error('[Speech] SpeechRecognition not supported');
       return;
@@ -184,9 +167,6 @@ const useSpeech = () => {
     }
   }, [SpeechRecognition, initRecognition, killExistingRecognition]);
 
-  /**
-   * 5. Stop listening
-   */
   const stopListening = useCallback(() => {
     killExistingRecognition();
     setIsListening(false);
@@ -204,9 +184,6 @@ const useSpeech = () => {
     return (finalTranscriptRef.current + ' ' + (interimTranscript || '')).trim();
   }, [interimTranscript]);
 
-  /**
-   * 6. Speak text aloud using SpeechSynthesis
-   */
   const speak = useCallback((text) => {
     return new Promise((resolve) => {
       if (typeof window === 'undefined' || !window.speechSynthesis || !text) {
@@ -219,16 +196,23 @@ const useSpeech = () => {
 
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'en-US';
-      utterance.rate = 1.0;
+      utterance.rate = 0.95;
       utterance.pitch = 1.0;
 
       const voices = window.speechSynthesis.getVoices();
-      const englishVoice = voices.find(v => 
-        v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Natural'))
+      const naturalVoice = voices.find(v => 
+        v.lang.startsWith('en') && (
+          v.name.includes('Natural') || 
+          v.name.includes('Google US English') || 
+          v.name.includes('Samantha') || 
+          v.name.includes('Daniel') || 
+          v.name.includes('Microsoft Guy') || 
+          v.name.includes('Microsoft Jenny')
+        )
       ) || voices.find(v => v.lang.startsWith('en'));
-      
-      if (englishVoice) {
-        utterance.voice = englishVoice;
+
+      if (naturalVoice) {
+        utterance.voice = naturalVoice;
       }
 
       let isFinished = false;
@@ -242,7 +226,7 @@ const useSpeech = () => {
       };
 
       const wordCount = text.split(/\s+/).length;
-      const maxTimeMs = Math.max(4000, (wordCount / 2.5) * 1000 + 3000);
+      const maxTimeMs = Math.max(4000, (wordCount / 2.2) * 1000 + 3500);
       const safetyTimer = setTimeout(() => {
         console.warn('[Speech] TTS safety timeout triggered');
         window.speechSynthesis.cancel();

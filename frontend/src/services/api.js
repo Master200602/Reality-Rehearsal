@@ -4,21 +4,8 @@ const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const api = axios.create({
   baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
 });
 
-// Request interceptor
-api.interceptors.request.use(
-  (config) => {
-    // You can add auth tokens here if needed
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// Response interceptor
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
@@ -29,6 +16,23 @@ api.interceptors.response.use(
 
 export const checkHealth = () => api.get('/health');
 
+export const uploadResume = (file) => {
+  const formData = new FormData();
+  formData.append('resume', file);
+
+  return api.post('/resume/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+};
+
+export const analyzeResume = (resumeText, targetRole) =>
+  api.post('/resume/analyze', { resumeText, targetRole });
+
+export const sendConversationTurn = (data) =>
+  api.post('/interview/conversation', data);
+
 export const generateQuestions = (domain, difficulty, count) => 
   api.post('/interview/generate-questions', { domain, difficulty, count });
 
@@ -37,9 +41,5 @@ export const evaluateAnswer = (question, answer, domain) =>
 
 export const generateReport = (data) =>
   api.post('/interview/generate-report', data);
-
-// NEW: Conversational interview turn
-export const sendConversationTurn = (data) =>
-  api.post('/interview/conversation', data);
 
 export default api;
