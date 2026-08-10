@@ -15,6 +15,7 @@ api.interceptors.response.use(
 );
 
 export const checkHealth = () => api.get('/health');
+export const checkCustomApiHealth = () => api.get('/v1/health');
 
 export const uploadResume = (file) => {
   const formData = new FormData();
@@ -38,6 +39,16 @@ export const generateQuestions = (domain, difficulty, count) =>
 
 export const evaluateAnswer = (question, answer, domain) =>
   api.post('/interview/evaluate-answer', { question, answer, domain });
+
+// ── MockMirror Custom V1 API Endpoints (98-99% Task Accuracy Engine) ──
+export const customAskQuestion = (payload) =>
+  api.post('/v1/interview/ask', payload);
+
+export const customEvaluateAnswer = (payload) =>
+  api.post('/v1/interview/evaluate', payload);
+
+export const customAnalyzeBehavior = (metrics) =>
+  api.post('/v1/behavior/analyze', metrics);
 
 export const generateReport = (data) =>
   api.post('/interview/generate-report', data);

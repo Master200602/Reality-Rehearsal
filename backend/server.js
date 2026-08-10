@@ -10,6 +10,7 @@ import rateLimit from 'express-rate-limit';
 import healthRoutes from './routes/health.js';
 import interviewRoutes from './routes/interview.js';
 import resumeRoutes from './routes/resume.js';
+import mockmirrorApiRoutes from './routes/mockmirrorApi.js';
 
 const app = express();
 
@@ -38,6 +39,7 @@ app.use('/api/', apiLimiter);
 app.use('/api/health', healthRoutes);
 app.use('/api/interview', interviewRoutes);
 app.use('/api/resume', resumeRoutes);
+app.use('/api/v1', mockmirrorApiRoutes);
 
 // Global Error Handler
 app.use((err, req, res, next) => {
