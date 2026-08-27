@@ -56,7 +56,25 @@ const CandidateInfo = () => {
 
     try {
       const uploadRes = await uploadResume(file);
-      const text = uploadRes.extractedText || `Resume: ${file.name}`;
+
+      // Check if backend returned a rejection (NOT_A_RESUME, INSUFFICIENT_CONTENT, etc.)
+      if (uploadRes.error) {
+        setErrorMessage(uploadRes.message || 'This file was rejected. Please upload a valid resume PDF.');
+        setUploadStatus('error');
+        setResumeFile(null);
+        setResumeText('');
+        return;
+      }
+
+      const text = uploadRes.extractedText;
+      if (!text || text.length < 50) {
+        setErrorMessage("Couldn't extract readable text from this PDF. Please upload a text-based resume PDF (not a scanned image).");
+        setUploadStatus('error');
+        setResumeFile(null);
+        setResumeText('');
+        return;
+      }
+
       setResumeText(text);
 
       const analysisRes = await analyzeResume(text, formData.targetRole);
@@ -64,15 +82,22 @@ const CandidateInfo = () => {
       setUploadStatus('analyzed');
     } catch (err) {
       console.warn('Resume upload error:', err);
-      const fallbackText = `Resume File: ${file.name}. Technical applicant targeting ${formData.targetRole}`;
-      setResumeText(fallbackText);
-      setResumeAnalysis({
-        skills: ['Technical Skills', formData.branch, formData.targetRole],
-        projects: ['Projects listed in resume'],
-        summary: `Candidate profile for ${formData.targetRole}`,
-      });
-      setUploadStatus('analyzed');
-      setErrorMessage('');
+
+      // Extract error message from API response if available
+      const apiError = err?.response?.data;
+      if (apiError?.error && apiError?.message) {
+        setErrorMessage(apiError.message);
+        setUploadStatus('error');
+        setResumeFile(null);
+        setResumeText('');
+        return;
+      }
+
+      // Network error or server completely down — show a clear message, don't silently continue
+      setErrorMessage('Could not connect to the server to process your resume. Please check your connection and try again.');
+      setUploadStatus('error');
+      setResumeFile(null);
+      setResumeText('');
     }
   };
 

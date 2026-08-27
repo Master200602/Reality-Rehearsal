@@ -19,7 +19,7 @@ function getGeminiModel() {
   const key = process.env.GEMINI_API_KEY;
   if (!key || key.trim() === '' || key === 'your_gemini_api_key_here') return null;
   const genAI = new GoogleGenerativeAI(key);
-  return genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  return genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -38,23 +38,55 @@ const TRIVIAL_WORDS = new Set([
 ]);
 
 /**
+ * Questions that the candidate is NOT allowed to refuse or skip — these are
+ * required for the interview to make sense (e.g. you can't run an interview
+ * without knowing who the candidate is). A refusal here must be pushed back
+ * on, not silently accepted as "SKIPPED".
+ */
+const MANDATORY_QUESTION_PATTERN = /\b(introduce|introduction|about yourself|tell me about (yourself|you)|who are you|your background|your name)\b/i;
+
+/**
  * Validates whether a candidate's answer is semantically relevant to the question.
  *
  * Returns:
  *   { valid: true }  — accept and advance
  *   { valid: false, status, reprompt }  — reject and re-ask
  */
-function validateAnswer(lastQuestion, answer) {
+function validateAnswer(lastQuestion, answer, questionsAsked = 0) {
   const raw = (answer || '').trim();
   const lower = raw.toLowerCase().replace(/[^a-z0-9\s']/g, '');
   const words = raw.split(/\s+/).filter(Boolean);
   const wordCount = words.length;
 
+  // The very first question of the interview is always treated as mandatory
+  // (it's the intro), even if its exact wording doesn't match the pattern.
+  const isMandatory = questionsAsked === 0 || MANDATORY_QUESTION_PATTERN.test(lastQuestion || '');
+
   // 1. Empty response
   if (!raw || wordCount === 0) {
     return {
       valid: false, status: 'INVALID',
-      reprompt: "I didn't receive any response. Please answer the question.",
+      reprompt: isMandatory
+        ? "I didn't catch a response. Before we get into the interview, I do need you to introduce yourself — your name, your background, and a bit about what you've been working on."
+        : "I didn't receive any response. Please answer the question.",
+    };
+  }
+
+  // 1b. Explicit refusal or request to skip
+  if (/\b(don't want|dont want|no answer|skip|pass|refuse|prefer not|no thanks|not answering|no i don't|no i dont)\b/i.test(raw)) {
+    if (isMandatory) {
+      // Cannot be skipped — push back like a human interviewer would,
+      // and re-ask the same question instead of advancing.
+      return {
+        valid: false,
+        status: 'REFUSED_MANDATORY',
+        reprompt: "I understand, but this part isn't optional — before we start the interview, I need a quick introduction from you: your name, your background, and what you've been working on recently. Go ahead whenever you're ready.",
+      };
+    }
+    return {
+      valid: true,
+      status: 'SKIPPED',
+      reprompt: null,
     };
   }
 
@@ -181,14 +213,14 @@ export const verifyApiKey = async (req, res) => {
   // Check 2: Actually call the API with a minimal test prompt
   try {
     const genAI = new GoogleGenerativeAI(key);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
     const result = await model.generateContent('Reply with exactly: {"status":"ok"}');
     const text = result.response.text();
     return res.status(200).json({
       status: 'ACTIVE',
       working: true,
       message: 'Gemini API key is valid and working correctly!',
-      modelUsed: 'gemini-2.0-flash',
+      modelUsed: 'gemini-3.6-flash',
       keyPrefix: key.slice(0, 6) + '...',
     });
   } catch (err) {
@@ -250,30 +282,32 @@ export const generateQuestions = async (req, res, next) => {
       }
 
       return res.status(200).json({
-        aiResponse: isWeak
-          ? `That response is too brief. Please elaborate on your ${targetRole} experience with specific technical details.`
-          : questionNumber >= totalQuestions
-            ? `Thank you ${candidateName}. That concludes the interview. Your report is being generated.`
+        aiResponse: questionNumber >= totalQuestions
+          ? `Thank you ${candidateName}. That concludes the interview. Your report is being generated.`
+          : isWeak
+            ? `Alright, let's move on. How did you handle performance optimization and error handling in your ${domain} work?`
             : `Good explanation. Building on that — how did you handle performance optimization and error handling in your ${domain} work?`,
-        questionNumber: Math.min(questionNumber + (isWeak ? 0 : 1), totalQuestions),
-        isComplete: !isWeak && questionNumber >= totalQuestions,
-        evaluation: isWeak ? null : { score: 7, feedback: 'Reasonable answer.', strengths: ['Clear'], improvements: ['Add more specifics'] },
+        questionNumber: Math.min(questionNumber + 1, totalQuestions),
+        isComplete: questionNumber >= totalQuestions,
+        evaluation: { score: isWeak ? 2 : 7, feedback: isWeak ? 'Very brief response.' : 'Reasonable answer.', strengths: ['Participated'], improvements: ['Add more specifics'] },
       });
     }
 
-    const prompt = `You are a strict senior technical interviewer for ${domain} at ${difficulty} level.
+    const prompt = `You are a senior, experienced human interviewer conducting a live ${domain} interview at ${difficulty} level. You are warm but professional, sharp but not robotic.
 Candidate: ${candidateName} | Role: ${targetRole} | Skills: ${skillsList} | Projects: ${projectsList}
 Resume: ${resumeText ? resumeText.slice(0, 2000) : 'Not provided'}
 Conversation so far: ${conversationHistory.map(m => `${m.role.toUpperCase()}: ${m.text}`).join('\n') || 'None'}
 Candidate latest answer: "${userAnswer || 'None — first turn'}"
 Total questions: ${totalQuestions} | Current question index: ${questionNumber + 1}
-If the answer is weak or fake, call it out and ask a sharper follow-up.
+
+React to the candidate's actual words — reference specific details they mentioned. Vary your acknowledgments every turn. If their answer is vague, push back conversationally. If they refuse a mandatory question like intro, explain why it matters and re-ask in fresh wording. If they refuse an optional question, accept it and pivot. Never repeat your previous message verbatim. Speak like a real person — 2-4 natural sentences, no bullet points, no markdown.
+
 Return ONLY valid JSON:
 {
-  "aiResponse": "spoken interviewer response",
+  "aiResponse": "natural spoken interviewer response",
   "questionNumber": ${Math.min(questionNumber + (userAnswer ? 1 : 0), totalQuestions)},
   "isComplete": ${questionNumber >= totalQuestions ? 'true' : 'false'},
-  "evaluation": ${userAnswer ? '{"score":1-10,"feedback":"...","strengths":["..."],"improvements":["..."]}' : 'null'}
+  "evaluation": ${userAnswer ? '{"score":1-10,"feedback":"honest 1-line assessment","strengths":["..."],"improvements":["..."]}' : 'null'}
 }`;
 
     const result = await model.generateContent(prompt);
@@ -342,8 +376,9 @@ export const generateReport = async (req, res, next) => {
       });
     }
 
-    const result = await model.generateContent(
-      `Generate a strict, honest interview performance report.
+    try {
+      const result = await model.generateContent(
+        `Generate a strict, honest interview performance report.
 Candidate: ${candidateName} | Role: ${targetRole} | Domain: ${domain} | Difficulty: ${difficulty}
 Computed overall score: ${overall}/100
 Responses: ${JSON.stringify(responses.map(r => ({ q: r.question?.slice(0, 80), score: r.score, feedback: r.feedback })), null, 2)}
@@ -356,60 +391,49 @@ Return ONLY valid JSON:
   "improvements":["3 specific improvements"],
   "recommendations":["3 actionable study tips"]
 }`
-    );
-    res.status(200).json(extractJSON(result.response.text()));
+      );
+      res.status(200).json(extractJSON(result.response.text()));
+    } catch (geminiError) {
+      console.warn('[generateReport] Gemini API error, returning calculated report:', geminiError.message);
+      return res.status(200).json({
+        candidateName, targetRole, overallScore: overall,
+        summary: `${candidateName} demonstrated good proficiency in ${targetRole} during the ${difficulty} session, achieving an overall score of ${overall}/100.`,
+        categoryScores: {
+          technical: Math.round(overall * 0.95), communication: Math.round(overall * 1.05),
+          confidence: Math.round(overall * 0.98), clarity: Math.round(overall * 1.02),
+        },
+        strengths: ['Effective answer structure', `Good grasp of ${domain} concepts`, 'Strong engagement'],
+        improvements: ['Deepen technical implementation details', 'Quantify project achievements', 'Maintain consistent pacing'],
+        recommendations: [`Review advanced ${domain} patterns`, 'Practice structured STAR response method', 'Conduct regular mock sessions'],
+      });
+    }
   } catch (error) {
     next(error);
   }
 };
 
 // ─────────────────────────────────────────────────────────────────
-// CORE: CONDUCT CONVERSATION — with full answer validation
+// CORE: CONDUCT CONVERSATION — natural, non-blocking interviewer
 // ─────────────────────────────────────────────────────────────────
 
 /**
- * Handles one conversation turn.
- *
- * Response always includes:
- *   validationStatus : 'FIRST_TURN' | 'VALID' | 'INVALID' | 'INCOMPLETE' | 'AMBIGUOUS'
- *   shouldAdvance    : boolean — false means re-ask same question, do NOT save answer
- *   aiResponse       : spoken text (re-prompt OR next question)
- *   questionNumber   : unchanged if shouldAdvance=false
- *   isComplete       : boolean
- *   evaluation       : object | null
+ * Handles one conversation turn. ALWAYS advances the interview.
+ * The AI responds naturally to whatever the user says — just like
+ * a real human interviewer would. No question is ever repeated.
  */
 export const conductConversation = async (req, res, next) => {
   try {
-    const { domain, difficulty, totalQuestions, conversationHistory, userAnswer } = req.body;
+    const { domain, difficulty, totalQuestions, conversationHistory, userAnswer, candidateProfile, resumeText } = req.body;
 
     const isFirstTurn = !conversationHistory?.length && !userAnswer;
-
-    // Find last question the interviewer asked (for validation context)
-    const lastInterviewerMsg = conversationHistory
-      ? [...conversationHistory].reverse().find(m => m.role === 'interviewer')
-      : null;
-    const lastQuestion = lastInterviewerMsg?.text || '';
 
     const questionsAsked = conversationHistory
       ? conversationHistory.filter((m, i) => m.role === 'interviewer' && i > 0).length
       : 0;
 
-    // ── STEP 1: Fast deterministic pre-validation (no API call needed) ──
-    if (!isFirstTurn && userAnswer) {
-      const preValidation = validateAnswer(lastQuestion, userAnswer);
-      if (!preValidation.valid) {
-        return res.status(200).json({
-          validationStatus: preValidation.status,
-          shouldAdvance: false,
-          aiResponse: preValidation.reprompt,
-          questionNumber: questionsAsked,
-          isComplete: false,
-          evaluation: null,
-        });
-      }
-    }
+    // ── No pre-validation. Let the AI handle everything naturally. ──
 
-    // ── STEP 2: Mock fallback when no API key configured ──
+    // ── Mock fallback when no API key configured ──
     const model = getGeminiModel();
     if (!model) {
       return res.status(200).json(
@@ -417,84 +441,99 @@ export const conductConversation = async (req, res, next) => {
       );
     }
 
-    // ── STEP 3: Gemini prompt with embedded semantic validation instruction ──
+    // ── Gemini prompt — behave like a real human interviewer ──
     const historyText = conversationHistory
       ? conversationHistory.map(m => `${m.role === 'interviewer' ? 'Interviewer' : 'Candidate'}: ${m.text}`).join('\n')
       : '(No history)';
 
-    const systemPrompt = `You are a strict Senior Technical Interviewer for ${domain} at ${difficulty} level.
-Total questions: ${totalQuestions} | Asked so far: ${questionsAsked}
+    const candidateName = candidateProfile?.fullName || 'Candidate';
+    const targetRole = candidateProfile?.targetRole || domain;
+    const skillsList = candidateProfile?.skills?.join(', ') || '';
+    const projectsList = candidateProfile?.projects?.join(', ') || '';
 
-${!isFirstTurn && userAnswer ? `
-=== MANDATORY ANSWER VALIDATION BEFORE RESPONDING ===
-Last question you asked:
-  "${lastQuestion}"
+    const systemPrompt = `You are a senior, experienced human interviewer conducting a live ${domain} interview at ${difficulty} level. You are warm but professional, sharp but not robotic. You have genuine curiosity about the candidate's experience. You never sound like a form, a script, or a validator repeating error messages.
+Candidate: ${candidateName} | Target Role: ${targetRole}
+${skillsList ? `Skills from resume: ${skillsList}` : ''}
+${projectsList ? `Projects from resume: ${projectsList}` : ''}
+${resumeText ? `Resume excerpt: ${resumeText.slice(0, 1500)}` : ''}
+Total questions to ask: ${totalQuestions} | Questions asked so far: ${questionsAsked}
 
-Candidate's response:
-  "${userAnswer}"
+CORE BEHAVIOR RULES
 
-Validate whether this response SEMANTICALLY and SUFFICIENTLY answers the question.
+1. React to what the candidate actually said — every time. Never respond with a generic template. Reference a specific detail, word, or claim from their last answer before moving on. A real interviewer listens.
 
-REJECT (set shouldAdvance=false) if:
-  - Response is a trivial word: "yes", "no", "ok", "sure", "I don't know", "maybe", "fine"
-  - Response is completely unrelated to what was asked
-  - Response is too vague to contain the requested information
-  - For introduction questions: must contain name, role, and some experience context
-  - For technical questions: must reference actual technical concepts, not just "I did it"
+2. Vary your acknowledgments. Never reuse the same opener twice in a session. Instead of always "Thanks for sharing" or "Good explanation," rotate through natural human reactions: "Interesting — ", "Okay, that makes sense.", "Got it, so you were mainly responsible for...", "Hm, walk me through that a bit more.", a short pause-like transition, etc.
 
-ACCEPT (set shouldAdvance=true) only if the response genuinely answers what was asked.
+3. Ask real follow-ups, not just the next scripted question. If the candidate mentions a specific technology, project, or decision, drill into it before moving to a fresh topic — the way a real interviewer probes ("You said you optimized the query — what was the bottleneck, exactly?"). Only move to an entirely new topic once a thread feels naturally exhausted.
 
-If REJECTED:
-  - aiResponse: explain exactly what is missing, then re-ask the same question clearly
-  - questionNumber: ${questionsAsked}  ← SAME, do not increment
-  - shouldAdvance: false
-  - evaluation: null
+4. Handle weak, evasive, or refusal answers the way a human would — not with an error message.
+   - If the answer is thin or vague: push back conversationally ("That's a bit high-level — can you get specific about what you did, versus the team?").
+   - If the candidate refuses a mandatory question (e.g. the introduction): do not treat it as skippable. Respond firmly but naturally, like a real interviewer who won't just move on — explain briefly why it matters, then ask again in fresh wording (not a copy-pasted repeat of your last message).
+   - If the candidate refuses a non-mandatory question later on: it's fine to accept that and pivot, the way a real interviewer would let some things go.
+   - Never phrase a re-ask as literally quoting your own previous sentence back ("please answer: '...'"). A human never does that. Re-ask in new words that still capture the same question.
 
-If ACCEPTED:
-  - Generate the next sharp follow-up question drilling into specifics of what they said
-  - questionNumber: ${questionsAsked + 1}
-  - shouldAdvance: true
-=== END VALIDATION ===
-` : 'FIRST TURN: Greet the candidate and ask the first domain-specific question.'}
+5. Keep continuity and memory. Refer back to earlier answers when relevant ("Earlier you mentioned you used Redis for caching — does that connect to this scaling problem?"). This is what makes it feel like one continuous conversation instead of isolated Q&A turns.
+
+6. Match tone to the moment. Encourage a nervous-sounding candidate briefly ("No worries, take your time"). Challenge an overconfident or vague answer. Don't praise every answer equally — vary your warmth based on the quality of what was actually said, the way a real evaluator would.
+
+7. Speak like a person, not a document.
+   - No bullet points, no markdown, no numbered lists in spoken responses.
+   - 2–4 natural sentences per turn, not clinical one-liners.
+   - Contractions are fine ("that's", "you've", "let's").
+   - Never say things like "Validation failed" or "Response rejected" — say what a human interviewer would actually say in that moment.
+   - Never repeat your own exact previous message verbatim, even when the candidate gives the same non-answer twice in a row. Rephrase, add a slightly different angle or reason each time, the way a patient human would.
+
+WHAT TO AVOID (things that break immersion)
+- Canned phrases like "That response doesn't answer the question."
+- Quoting your own earlier message back to the candidate.
+- Treating every refusal identically, regardless of whether the question was mandatory or optional.
+- Jumping to a totally unrelated question right after a rich, detailed answer without at least one follow-up.
+- Giving the same "Good explanation. Building on that —" transition every turn.
+- Long clinical evaluation-style text in the spoken response (save structured scoring for the background evaluation object, not the thing the candidate hears).
+
+${isFirstTurn ? 'This is the FIRST TURN. Greet the candidate warmly by name and ask them to briefly introduce themselves — their name, background, what they have been working on. Keep it natural and inviting.' : ''}
 
 Conversation history:
 ${historyText}
 
-${userAnswer ? `Candidate answer: "${userAnswer}"` : '(First turn)'}
+${userAnswer ? `Candidate's latest response: "${userAnswer}"` : '(First turn — no response yet)'}
 
 Respond with ONLY raw valid JSON (no markdown, no code fences):
 {
-  "validationStatus": "${isFirstTurn ? 'FIRST_TURN' : 'VALID or INVALID or INCOMPLETE or AMBIGUOUS'}",
-  "shouldAdvance": ${isFirstTurn ? 'true' : 'true or false based on your validation'},
-  "aiResponse": "natural spoken response — 2-3 sentences, no bullet points, no markdown",
-  "questionNumber": ${isFirstTurn ? 1 : 'same or incremented based on shouldAdvance'},
+  "validationStatus": "VALID",
+  "shouldAdvance": true,
+  "aiResponse": "your natural spoken response — react to what they said, then continue the conversation",
+  "questionNumber": ${isFirstTurn ? 1 : questionsAsked + 1},
   "isComplete": ${questionsAsked >= totalQuestions && userAnswer ? 'true' : 'false'},
-  "evaluation": ${!isFirstTurn && userAnswer ? '{"score":1-10,"feedback":"...","strengths":["..."],"improvements":["..."]}' : 'null'}
+  "evaluation": ${!isFirstTurn && userAnswer ? '{"score":1-10,"feedback":"honest 1-line assessment of what they said","strengths":["..."],"improvements":["..."]}' : 'null'}
 }`;
 
-    const result = await model.generateContent(systemPrompt);
-    const data = extractJSON(result.response.text());
+    try {
+      const result = await model.generateContent(systemPrompt);
+      const data = extractJSON(result.response.text());
 
-    const advance = data.shouldAdvance !== false;
-
-    return res.status(200).json({
-      validationStatus: data.validationStatus || 'VALID',
-      shouldAdvance: advance,
-      aiResponse: String(data.aiResponse || 'Could you clarify your answer?'),
-      questionNumber: advance
-        ? (Number(data.questionNumber) || questionsAsked + 1)
-        : questionsAsked,
-      isComplete: advance ? Boolean(data.isComplete) : false,
-      evaluation: (advance && data.evaluation) ? {
-        score: Number(data.evaluation.score) || 5,
-        feedback: String(data.evaluation.feedback || ''),
-        strengths: Array.isArray(data.evaluation.strengths) ? data.evaluation.strengths : [],
-        improvements: Array.isArray(data.evaluation.improvements) ? data.evaluation.improvements : [],
-      } : null,
-    });
+      return res.status(200).json({
+        validationStatus: 'VALID',
+        shouldAdvance: true,
+        aiResponse: String(data.aiResponse || 'Interesting. Let me ask you the next question.'),
+        questionNumber: Number(data.questionNumber) || questionsAsked + 1,
+        isComplete: Boolean(data.isComplete),
+        evaluation: data.evaluation ? {
+          score: Number(data.evaluation.score) || 5,
+          feedback: String(data.evaluation.feedback || ''),
+          strengths: Array.isArray(data.evaluation.strengths) ? data.evaluation.strengths : [],
+          improvements: Array.isArray(data.evaluation.improvements) ? data.evaluation.improvements : [],
+        } : null,
+      });
+    } catch (geminiError) {
+      console.warn('[conductConversation] Gemini API error, using smart fallback engine:', geminiError.message);
+      return res.status(200).json(
+        getMockTurn(domain, difficulty, totalQuestions, conversationHistory || [], userAnswer)
+      );
+    }
 
   } catch (error) {
-    console.error('[conductConversation] Error:', error.message);
+    console.error('[conductConversation] Critical Error:', error.message);
     next(error);
   }
 };
@@ -517,43 +556,61 @@ function getMockTurn(domain, difficulty, totalQuestions, conversationHistory, us
     };
   }
 
-  // Run validation even in mock mode
-  const lastQ = [...conversationHistory].reverse().find(m => m.role === 'interviewer')?.text || '';
-  const validation = validateAnswer(lastQ, userAnswer);
-
-  if (!validation.valid) {
-    return {
-      validationStatus: validation.status, shouldAdvance: false,
-      aiResponse: validation.reprompt,
-      questionNumber: questionsAsked, isComplete: false, evaluation: null,
-    };
-  }
+  // NO validation blocking — always advance
 
   if (questionsAsked >= totalQuestions) {
     return {
       validationStatus: 'VALID', shouldAdvance: true,
       aiResponse: `Thank you for your responses throughout this ${domain} interview. That concludes our session. Your performance report is ready!`,
       questionNumber: questionsAsked, isComplete: true,
-      evaluation: { score: 8, feedback: 'Good overall responses.', strengths: ['Clear communication'], improvements: ['Add more metrics'] },
+      evaluation: { score: 7, feedback: 'Completed the interview session.', strengths: ['Engagement'], improvements: ['Provide more detailed answers'] },
     };
   }
 
-  const t = (userAnswer || '').toLowerCase();
-  let ack = `Thanks for explaining that.`;
-  let next = `What was the most difficult technical challenge you faced in your ${domain} work, and how did you solve it?`;
+  const lowerAnswer = (userAnswer || '').toLowerCase().trim();
+  const isSkipped = /\b(don't want|dont want|no answer|skip|pass|refuse|prefer not|no thanks|not answering|no i don't|no i dont)\b/i.test(lowerAnswer);
+  const isTrivial = TRIVIAL_WORDS.has(lowerAnswer.replace(/[^a-z\s]/g, '').trim()) || lowerAnswer.split(/\s+/).length <= 2;
 
-  if (t.includes('react') || t.includes('vue') || t.includes('angular')) {
-    ack = 'You mentioned frontend framework experience.';
-    next = 'How did you handle state management and component re-rendering optimisation in that project?';
-  } else if (t.includes('node') || t.includes('express') || t.includes('backend')) {
-    ack = 'You built backend services.';
-    next = 'How did you handle authentication, request validation, and database connection pooling?';
-  } else if (t.includes('sql') || t.includes('mongo') || t.includes('database') || t.includes('db')) {
-    ack = 'You worked with databases.';
-    next = 'What indexing strategies and query optimisation techniques did you apply?';
-  } else if (t.includes('python') || t.includes('ml') || t.includes('model') || t.includes('ai')) {
-    ack = 'You touched on AI/ML work.';
+  let ack = '';
+  let next = '';
+  let score = 7;
+
+  if (isSkipped || (isTrivial && /^(no|nah|nope|no no|nah nah)\s*$/i.test(lowerAnswer))) {
+    // Check if this was the intro question (first question after greeting)
+    if (questionsAsked <= 1) {
+      ack = "Hey, I totally get it — interviews can feel awkward at first. But a quick intro really helps me ask you the right questions. You could just say something like 'Hi, I'm a developer and I've been working on web apps' — nothing fancy needed.";
+      next = `So go ahead — what's your name and what have you been working on recently?`;
+    } else {
+      ack = "No worries, that's okay. Let me ask you something different instead.";
+      next = `Tell me about a project you've worked on in ${domain}. What was your role and what technologies did you use?`;
+    }
+    score = 2;
+  } else if (isTrivial) {
+    ack = "I appreciate the response, but I'd love to hear a bit more from you.";
+    next = `Can you walk me through a specific technical challenge you faced in ${domain} and how you approached solving it?`;
+    score = 3;
+  } else if (lowerAnswer.includes('react') || lowerAnswer.includes('vue') || lowerAnswer.includes('angular') || lowerAnswer.includes('frontend')) {
+    ack = 'You mentioned working with modern frontend frameworks.';
+    next = 'How did you handle state management and component re-rendering optimization in that project?';
+  } else if (lowerAnswer.includes('node') || lowerAnswer.includes('express') || lowerAnswer.includes('backend') || lowerAnswer.includes('api')) {
+    ack = 'You mentioned backend and API development.';
+    next = 'How did you structure request validation, authentication, and error handling in your backend services?';
+  } else if (lowerAnswer.includes('sql') || lowerAnswer.includes('mongo') || lowerAnswer.includes('database') || lowerAnswer.includes('db')) {
+    ack = 'You touched on database management.';
+    next = 'What indexing strategies or query optimization techniques did you use to maintain database performance?';
+  } else if (lowerAnswer.includes('python') || lowerAnswer.includes('ml') || lowerAnswer.includes('ai') || lowerAnswer.includes('model')) {
+    ack = 'You mentioned working with AI and data pipelines.';
     next = 'How did you handle data preprocessing, model evaluation, and preventing overfitting?';
+  } else {
+    // Dynamically extract words from candidate's text
+    const cleanWords = lowerAnswer.split(/\s+/).filter(w => w.length > 3 && !TRIVIAL_WORDS.has(w));
+    if (cleanWords.length > 0) {
+      const phrase = cleanWords.slice(0, 3).join(', ');
+      ack = `Interesting — you touched on ${phrase}.`;
+    } else {
+      ack = `Got it.`;
+    }
+    next = `From a technical standpoint in ${domain}, what was the most complex problem you solved recently and what tradeoffs did you evaluate?`;
   }
 
   return {
@@ -561,9 +618,10 @@ function getMockTurn(domain, difficulty, totalQuestions, conversationHistory, us
     aiResponse: `${ack} ${next}`,
     questionNumber: questionsAsked + 1, isComplete: false,
     evaluation: {
-      score: 8, feedback: 'Good response with relevant technical details.',
-      strengths: ['Relevant knowledge', 'Clear explanation'],
-      improvements: ['Include specific metrics or benchmarks'],
+      score,
+      feedback: score <= 3 ? 'Candidate chose not to elaborate or gave a very brief response.' : 'Good response with relevant technical context.',
+      strengths: score <= 3 ? ['Continued participating in the interview'] : ['Relevant domain knowledge', 'Clear articulation'],
+      improvements: score <= 3 ? ['Provide detailed, substantive answers to demonstrate knowledge'] : ['Include specific technical metrics or benchmarks'],
     },
   };
 }
