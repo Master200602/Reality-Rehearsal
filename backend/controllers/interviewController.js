@@ -19,7 +19,7 @@ function getGeminiModel() {
   const key = process.env.GEMINI_API_KEY;
   if (!key || key.trim() === '' || key === 'your_gemini_api_key_here') return null;
   const genAI = new GoogleGenerativeAI(key);
-  return genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
+  return genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -213,14 +213,14 @@ export const verifyApiKey = async (req, res) => {
   // Check 2: Actually call the API with a minimal test prompt
   try {
     const genAI = new GoogleGenerativeAI(key);
-    const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const result = await model.generateContent('Reply with exactly: {"status":"ok"}');
     const text = result.response.text();
     return res.status(200).json({
       status: 'ACTIVE',
       working: true,
       message: 'Gemini API key is valid and working correctly!',
-      modelUsed: 'gemini-3.6-flash',
+      modelUsed: 'gemini-2.5-flash',
       keyPrefix: key.slice(0, 6) + '...',
     });
   } catch (err) {
@@ -423,7 +423,7 @@ Return ONLY valid JSON:
  */
 export const conductConversation = async (req, res, next) => {
   try {
-    const { domain, difficulty, totalQuestions, conversationHistory, userAnswer, candidateProfile, resumeText } = req.body;
+    const { domain, difficulty, totalQuestions, conversationHistory, userAnswer, candidateProfile, resumeText, interviewerName = 'Sarah Jenkins', interviewerTitle = 'Lead Technical Recruiter' } = req.body;
 
     const isFirstTurn = !conversationHistory?.length && !userAnswer;
 
@@ -437,13 +437,13 @@ export const conductConversation = async (req, res, next) => {
     const model = getGeminiModel();
     if (!model) {
       return res.status(200).json(
-        getMockTurn(domain, difficulty, totalQuestions, conversationHistory || [], userAnswer)
+        getMockTurn(domain, difficulty, totalQuestions, conversationHistory || [], userAnswer, interviewerName, interviewerTitle)
       );
     }
 
     // ── Gemini prompt — behave like a real human interviewer ──
     const historyText = conversationHistory
-      ? conversationHistory.map(m => `${m.role === 'interviewer' ? 'Interviewer' : 'Candidate'}: ${m.text}`).join('\n')
+      ? conversationHistory.map(m => `${m.role === 'interviewer' ? interviewerName : 'Candidate'}: ${m.text}`).join('\n')
       : '(No history)';
 
     const candidateName = candidateProfile?.fullName || 'Candidate';
@@ -451,7 +451,8 @@ export const conductConversation = async (req, res, next) => {
     const skillsList = candidateProfile?.skills?.join(', ') || '';
     const projectsList = candidateProfile?.projects?.join(', ') || '';
 
-    const systemPrompt = `You are a senior, experienced human interviewer conducting a live ${domain} interview at ${difficulty} level. You are warm but professional, sharp but not robotic. You have genuine curiosity about the candidate's experience. You never sound like a form, a script, or a validator repeating error messages.
+    const systemPrompt = `You are ${interviewerName}, a senior ${interviewerTitle} conducting a live ${domain} interview at ${difficulty} level. You are warm, professional, sharp, and genuinely human in your interaction style. You have genuine curiosity about the candidate's real-world experiences. You never sound like an automated bot, a script, or a validator repeating error messages.
+Interviewer Persona: ${interviewerName} (${interviewerTitle})
 Candidate: ${candidateName} | Target Role: ${targetRole}
 ${skillsList ? `Skills from resume: ${skillsList}` : ''}
 ${projectsList ? `Projects from resume: ${projectsList}` : ''}
@@ -526,7 +527,11 @@ Respond with ONLY raw valid JSON (no markdown, no code fences):
         } : null,
       });
     } catch (geminiError) {
-      console.warn('[conductConversation] Gemini API error, using smart fallback engine:', geminiError.message);
+      console.error('\n========================================');
+      console.error('⚠️  GEMINI API CALL FAILED — using scripted fallback, NOT real AI');
+      console.error('Reason:', geminiError.message);
+      console.error('This usually means: invalid model name, invalid/missing API key, or quota exceeded.');
+      console.error('========================================\n');
       return res.status(200).json(
         getMockTurn(domain, difficulty, totalQuestions, conversationHistory || [], userAnswer)
       );
@@ -542,7 +547,7 @@ Respond with ONLY raw valid JSON (no markdown, no code fences):
 // MOCK FALLBACK — used when GEMINI_API_KEY is not set
 // ─────────────────────────────────────────────────────────────────
 
-function getMockTurn(domain, difficulty, totalQuestions, conversationHistory, userAnswer) {
+function getMockTurn(domain, difficulty, totalQuestions, conversationHistory, userAnswer, interviewerName = 'Sarah Jenkins', interviewerTitle = 'Lead Technical Recruiter') {
   const questionsAsked = conversationHistory.filter(
     (m, i) => m.role === 'interviewer' && i > 0
   ).length;
@@ -551,7 +556,7 @@ function getMockTurn(domain, difficulty, totalQuestions, conversationHistory, us
   if (isFirstTurn) {
     return {
       validationStatus: 'FIRST_TURN', shouldAdvance: true,
-      aiResponse: `Welcome to your ${domain} interview at ${difficulty} level. I'll ask you ${totalQuestions} questions. To start — please give me a brief introduction: your name, your background, and what you have been working on recently.`,
+      aiResponse: `Hi there! I'm ${interviewerName}, ${interviewerTitle}. Welcome to your ${domain} interview session at ${difficulty} level! To get started — please give me a brief introduction: your name, your background, and what you have been working on recently.`,
       questionNumber: 1, isComplete: false, evaluation: null,
     };
   }

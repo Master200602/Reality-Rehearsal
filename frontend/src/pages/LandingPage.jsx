@@ -39,7 +39,7 @@ const LandingPage = () => {
           </div>
           <div className="stat-item">
             <span className="stat-value gradient-text">Real-time</span>
-            <span className="stat-label">AI Voice</span>
+            <span className="stat-label">Human Voice</span>
           </div>
           <div className="stat-item">
             <span className="stat-value gradient-text">Detailed</span>

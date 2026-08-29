@@ -17,6 +17,7 @@ const Report = () => {
     responses = [],
     candidateProfile = null,
     resumeText = '',
+    interviewer = null,
   } = location.state || {};
 
   const [reportData, setReportData] = useState(null);
@@ -121,6 +122,11 @@ const Report = () => {
             <p className="role-sub">Interview Performance Report — <strong>{reportData?.targetRole || domain}</strong> ({difficulty})</p>
           </div>
         </div>
+        {interviewer && (
+          <div className="candidate-meta-tag" style={{ border: `1px solid ${interviewer.badgeColor}` }}>
+            <User size={16} /> Interviewer: <strong>{interviewer.name}</strong> ({interviewer.title})
+          </div>
+        )}
         {candidateProfile?.education && (
           <div className="candidate-meta-tag">
             <Award size={16} /> {candidateProfile.education}

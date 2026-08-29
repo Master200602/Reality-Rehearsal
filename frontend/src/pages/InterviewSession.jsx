@@ -3,10 +3,11 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Mic, MicOff, Volume2, Loader, AlertCircle, LogOut, Send, Play, UserCheck, ArrowRight } from 'lucide-react';
 import useSpeech from '../hooks/useSpeech';
 import { sendConversationTurn } from '../services/api';
+import { getRandomInterviewer } from '../utils/interviewers';
 import './InterviewSession.css';
 
 /**
- * Personalized Conversational AI Voice Interview Session
+ * Personalized Conversational Interview Session with Real-World Human Interviewer Personas
  */
 const InterviewSession = () => {
   const location = useLocation();
@@ -18,7 +19,11 @@ const InterviewSession = () => {
     questionsCount = 5,
     candidateProfile = null,
     resumeText = '',
+    interviewer: initialInterviewer = null,
   } = location.state || {};
+
+  // Assigned real-world interviewer persona
+  const interviewer = useRef(initialInterviewer || getRandomInterviewer()).current;
 
   // ─── State ───
   const [isStarted, setIsStarted] = useState(false);
@@ -109,6 +114,8 @@ const InterviewSession = () => {
         userAnswer: userAnswer || '',
         candidateProfile,
         resumeText,
+        interviewerName: interviewer.name,
+        interviewerTitle: interviewer.title,
       });
 
       const { aiResponse, questionNumber: qNum, isComplete, evaluation } = response;
@@ -132,7 +139,7 @@ const InterviewSession = () => {
 
       if (isComplete) {
         setPhase('speaking');
-        try { await speak(aiResponse); } catch (e) { /* ignore */ }
+        try { await speak(aiResponse, interviewer.voiceSettings); } catch (e) { /* ignore */ }
         setPhase('complete');
 
         setTimeout(() => {
@@ -143,14 +150,15 @@ const InterviewSession = () => {
               responses,
               candidateProfile,
               resumeText,
+              interviewer,
             },
           });
         }, 2500);
       } else {
-        // Speak AI response aloud
+        // Speak response aloud using persona voice parameters
         setPhase('speaking');
         try {
-          await speak(aiResponse);
+          await speak(aiResponse, interviewer.voiceSettings);
         } catch (e) {
           console.warn('TTS error:', e);
         }
@@ -167,7 +175,7 @@ const InterviewSession = () => {
       const qNum = interviewerMsgs.length + (userAnswer ? 1 : 0);
       const isFirst = !updatedHistory.length && !userAnswer;
 
-      let aiResp = `Welcome to your ${domain} interview session! Let's get started. Please give me a brief introduction: your name, your background, and your recent project experience.`;
+      let aiResp = interviewer.greetingIntro || `Hi there! I'm ${interviewer.name}, ${interviewer.title}. Welcome to your ${domain} interview session! Please give me a brief introduction: your name, your background, and your recent project experience.`;
       let isDone = false;
       let evalObj = null;
 
@@ -186,7 +194,7 @@ const InterviewSession = () => {
           `Thank you for sharing your experience. That completes our interview session!`
         ];
         aiResp = isDone
-          ? `Thank you for completing this ${domain} interview session. Your performance report is ready!`
+          ? `Thank you for completing this ${domain} interview session with me. Your performance report is ready!`
           : qList[Math.min(qNum - 1, qList.length - 1)];
 
         if (!isSkip) {
@@ -218,16 +226,16 @@ const InterviewSession = () => {
 
       if (isDone) {
         setPhase('speaking');
-        try { await speak(aiResp); } catch (e) {}
+        try { await speak(aiResp, interviewer.voiceSettings); } catch (e) {}
         setPhase('complete');
         setTimeout(() => {
           navigate('/report', {
-            state: { domain, difficulty, responses, candidateProfile, resumeText },
+            state: { domain, difficulty, responses, candidateProfile, resumeText, interviewer },
           });
         }, 2500);
       } else {
         setPhase('speaking');
-        try { await speak(aiResp); } catch (e) {}
+        try { await speak(aiResp, interviewer.voiceSettings); } catch (e) {}
         setPhase('listening');
         resetTranscript();
         startListening(3500, handleSilenceTimeout);
@@ -287,6 +295,7 @@ const InterviewSession = () => {
         responses,
         candidateProfile,
         resumeText,
+        interviewer,
       },
     });
   };
@@ -301,7 +310,7 @@ const InterviewSession = () => {
           </div>
           <h2>Candidate Profile Required</h2>
           <p>
-            Please complete your candidate details and upload your resume before starting the personalized AI interview.
+            Please complete your candidate details and upload your resume before starting your interview.
           </p>
           <button
             className="btn-primary start-session-btn"
@@ -332,13 +341,13 @@ const InterviewSession = () => {
     return (
       <div className="session-page">
         <div className="start-card glass-card text-center">
-          <div className="start-icon">
-            <Volume2 size={48} />
+          <div className="start-icon" style={{ background: interviewer.avatarBg, borderRadius: '50%', width: 72, height: 72, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem', color: '#fff', fontSize: '1.8rem', fontWeight: 800 }}>
+            {interviewer.avatarInitial}
           </div>
-          <h2>Ready to Begin Your Interview?</h2>
+          <h2>Ready to Begin Your Interview with {interviewer.name}?</h2>
           <p>
-            Candidate: <strong>{candidateProfile?.fullName || 'Candidate'}</strong><br />
-            Target Role: <strong>{candidateProfile?.targetRole || domain}</strong> ({difficulty} Level)
+            Interviewer: <strong>{interviewer.name}</strong> ({interviewer.title})<br />
+            Candidate: <strong>{candidateProfile?.fullName || 'Candidate'}</strong> | <strong>{candidateProfile?.targetRole || domain}</strong> ({difficulty} Level)
           </p>
           {resumeText && (
             <div className="resume-notice">
@@ -346,7 +355,7 @@ const InterviewSession = () => {
             </div>
           )}
           <button className="btn-primary start-session-btn" onClick={handleStartSession}>
-            Start AI Voice Interview <Play size={20} fill="currentColor" />
+            Start Interview with {interviewer.name} <Play size={20} fill="currentColor" />
           </button>
         </div>
       </div>
@@ -358,6 +367,7 @@ const InterviewSession = () => {
       {/* Header */}
       <div className="session-header glass-card">
         <div className="session-meta">
+          <span className="badge" style={{ background: interviewer.badgeColor, color: '#fff', fontWeight: 700 }}>🎙️ {interviewer.name}</span>
           <span className="badge">{candidateProfile?.fullName || 'Candidate'}</span>
           <span className="badge">{domain}</span>
           <span className="badge">{difficulty}</span>
@@ -369,10 +379,10 @@ const InterviewSession = () => {
           <div className={`status-indicator ${phase}`}>
             <span className="status-dot"></span>
             <span className="status-text">
-              {phase === 'greeting' && 'Starting...'}
-              {phase === 'speaking' && 'AI Interviewer Speaking'}
+              {phase === 'greeting' && `Connecting to ${interviewer.name}...`}
+              {phase === 'speaking' && `${interviewer.name} is Speaking...`}
               {phase === 'listening' && (isListening ? '🔴 Listening to your voice' : 'Mic Paused')}
-              {phase === 'thinking' && 'AI Evaluating...'}
+              {phase === 'thinking' && `${interviewer.name} is Evaluating...`}
               {phase === 'complete' && 'Interview Complete'}
             </span>
           </div>
@@ -400,14 +410,14 @@ const InterviewSession = () => {
             <div className="avatar-ring ring-1"></div>
             <div className="avatar-ring ring-2"></div>
             <div className="avatar-ring ring-3"></div>
-            <div className="avatar-core">
+            <div className="avatar-core" style={{ background: interviewer.avatarBg }}>
               {phase === 'speaking' && <Volume2 size={28} />}
               {phase === 'listening' && <Mic size={28} />}
               {(phase === 'thinking' || phase === 'greeting') && <Loader size={28} className="spin" />}
               {phase === 'complete' && <span className="avatar-check">✓</span>}
             </div>
           </div>
-          <span className="avatar-label">AI Senior Interviewer</span>
+          <span className="avatar-label"><strong>{interviewer.name}</strong> • {interviewer.title}</span>
         </div>
 
         {/* Chat Transcript */}
@@ -415,7 +425,7 @@ const InterviewSession = () => {
           <div className="chat-scroll">
             {conversationHistory.map((msg, i) => (
               <div key={i} className={`chat-bubble ${msg.role === 'interviewer' ? 'bubble-ai' : 'bubble-user'}`}>
-                <span className="bubble-role">{msg.role === 'interviewer' ? '🎙️ AI Interviewer' : `👤 ${candidateProfile?.fullName || 'You'}`}</span>
+                <span className="bubble-role">{msg.role === 'interviewer' ? `🎙️ ${interviewer.name}` : `👤 ${candidateProfile?.fullName || 'You'}`}</span>
                 <p className="bubble-text">{msg.text}</p>
               </div>
             ))}
@@ -437,7 +447,7 @@ const InterviewSession = () => {
 
             {phase === 'thinking' && (
               <div className="chat-bubble bubble-ai bubble-thinking">
-                <span className="bubble-role">🎙️ AI Interviewer</span>
+                <span className="bubble-role">🎙️ {interviewer.name}</span>
                 <div className="thinking-dots"><span></span><span></span><span></span></div>
               </div>
             )}
@@ -492,14 +502,14 @@ const InterviewSession = () => {
           {phase === 'speaking' && (
             <div className="speaking-indicator">
               <Volume2 size={20} />
-              <span>AI Interviewer is speaking aloud...</span>
+              <span>{interviewer.name} is speaking...</span>
             </div>
           )}
 
           {(phase === 'thinking' || phase === 'greeting') && (
             <div className="thinking-indicator">
               <Loader size={20} className="spin" />
-              <span>{phase === 'greeting' ? 'Starting personalized interview...' : 'Analyzing your answer with resume context...'}</span>
+              <span>{phase === 'greeting' ? `Connecting with ${interviewer.name}...` : `${interviewer.name} is evaluating your response...`}</span>
             </div>
           )}
 

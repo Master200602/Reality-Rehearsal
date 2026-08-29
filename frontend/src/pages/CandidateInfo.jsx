@@ -1,11 +1,19 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Mail, MapPin, GraduationCap, Briefcase, Target, UploadCloud, CheckCircle2, FileText, AlertCircle, ArrowRight, Loader2, Zap, List } from 'lucide-react';
+import { User, Mail, MapPin, GraduationCap, Briefcase, Target, UploadCloud, CheckCircle2, FileText, AlertCircle, ArrowRight, Loader2, Zap, List, UserCheck, RefreshCw } from 'lucide-react';
 import { uploadResume, analyzeResume } from '../services/api';
+import { getRandomInterviewer } from '../utils/interviewers';
 import './CandidateInfo.css';
 
 const CandidateInfo = () => {
   const navigate = useNavigate();
+
+  // Assigned real-world interviewer persona (selected dynamically for each session)
+  const [interviewer, setInterviewer] = useState(() => getRandomInterviewer());
+
+  const handleShuffleInterviewer = () => {
+    setInterviewer(prev => getRandomInterviewer(prev.id));
+  };
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -164,6 +172,7 @@ const CandidateInfo = () => {
           questionsCount,
           candidateProfile,
           resumeText,
+          interviewer,
         },
       });
     }, 600);
@@ -175,7 +184,30 @@ const CandidateInfo = () => {
         
         <div className="candidate-header text-center">
           <h2>Candidate Registration & Resume Upload</h2>
-          <p>Complete all mandatory fields and attach your resume PDF to start your personalized AI voice interview</p>
+          <p>Complete all mandatory fields and attach your resume PDF to meet your interviewer and begin.</p>
+        </div>
+
+        {/* Assigned Interviewer Card */}
+        <div className="assigned-interviewer-card glass-card">
+          <div className="interviewer-card-left">
+            <div className="interviewer-avatar" style={{ background: interviewer.avatarBg }}>
+              {interviewer.avatarInitial}
+            </div>
+            <div className="interviewer-details">
+              <span className="assigned-tag"><UserCheck size={14} /> Assigned Interviewer</span>
+              <h3>{interviewer.name}</h3>
+              <p className="interviewer-title">{interviewer.title} • {interviewer.company}</p>
+              <p className="interviewer-personality">"{interviewer.personality}"</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="btn-secondary change-interviewer-btn"
+            onClick={handleShuffleInterviewer}
+            title="Change Interviewer Persona"
+          >
+            <RefreshCw size={16} /> Switch Interviewer
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="candidate-form-layout">
@@ -390,9 +422,9 @@ const CandidateInfo = () => {
 
             <button type="submit" className="btn-primary start-btn" disabled={isSubmitting}>
               {isSubmitting ? (
-                <>Preparing AI Voice Interview... <Loader2 size={20} className="spin" /></>
+                <>Connecting with {interviewer.name}... <Loader2 size={20} className="spin" /></>
               ) : (
-                <>Start AI Voice Interview <ArrowRight size={20} /></>
+                <>Start Interview with {interviewer.name} <ArrowRight size={20} /></>
               )}
             </button>
           </div>

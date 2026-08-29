@@ -184,7 +184,7 @@ const useSpeech = () => {
     return (finalTranscriptRef.current + ' ' + (interimTranscript || '')).trim();
   }, [interimTranscript]);
 
-  const speak = useCallback((text) => {
+  const speak = useCallback((text, customVoiceSettings = null) => {
     return new Promise((resolve) => {
       if (typeof window === 'undefined' || !window.speechSynthesis || !text) {
         resolve();
@@ -196,23 +196,45 @@ const useSpeech = () => {
 
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'en-US';
-      utterance.rate = 0.95;
-      utterance.pitch = 1.0;
+
+      // Pitch & rate from custom persona settings or natural defaults
+      utterance.pitch = customVoiceSettings?.pitch ?? 1.0;
+      utterance.rate = customVoiceSettings?.rate ?? 0.95;
 
       const voices = window.speechSynthesis.getVoices();
-      const naturalVoice = voices.find(v => 
-        v.lang.startsWith('en') && (
-          v.name.includes('Natural') || 
-          v.name.includes('Google US English') || 
-          v.name.includes('Samantha') || 
-          v.name.includes('Daniel') || 
-          v.name.includes('Microsoft Guy') || 
-          v.name.includes('Microsoft Jenny')
-        )
-      ) || voices.find(v => v.lang.startsWith('en'));
+      const preferred = customVoiceSettings?.preferredVoices || [];
+      const targetGender = customVoiceSettings?.gender || '';
 
-      if (naturalVoice) {
-        utterance.voice = naturalVoice;
+      // 1. Try to find an English voice matching persona's preferred voice names
+      let matchedVoice = null;
+      if (preferred.length > 0) {
+        matchedVoice = voices.find(v =>
+          v.lang.startsWith('en') && preferred.some(pName => v.name.toLowerCase().includes(pName.toLowerCase()))
+        );
+      }
+
+      // 2. Fallback to gender matching or generic natural English voice
+      if (!matchedVoice && targetGender) {
+        matchedVoice = voices.find(v =>
+          v.lang.startsWith('en') && v.name.toLowerCase().includes(targetGender.toLowerCase())
+        );
+      }
+
+      // 3. Fallback to any natural or standard English voice
+      if (!matchedVoice) {
+        matchedVoice = voices.find(v =>
+          v.lang.startsWith('en') && (
+            v.name.includes('Natural') ||
+            v.name.includes('Google US English') ||
+            v.name.includes('Samantha') ||
+            v.name.includes('Daniel') ||
+            v.name.includes('Microsoft')
+          )
+        ) || voices.find(v => v.lang.startsWith('en'));
+      }
+
+      if (matchedVoice) {
+        utterance.voice = matchedVoice;
       }
 
       let isFinished = false;

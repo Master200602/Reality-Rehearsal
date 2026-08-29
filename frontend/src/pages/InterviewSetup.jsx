@@ -1,11 +1,7 @@
 import { useState } from 'react';
-<<<<<<< HEAD
-import { useNavigate } from 'react-router-dom';
-import { Settings, Play, Briefcase, Zap, List, Mic } from 'lucide-react';
-=======
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Settings, Play, Briefcase, Zap, List, User, FileText, CheckCircle } from 'lucide-react';
->>>>>>> ce543e9 (Candidate form)
+import { Settings, Play, Briefcase, Zap, List, User, FileText, CheckCircle, UserCheck } from 'lucide-react';
+import { getRandomInterviewer } from '../utils/interviewers';
 import './InterviewSetup.css';
 
 const domains = [
@@ -19,6 +15,7 @@ const InterviewSetup = () => {
 
   const candidateProfile = location.state?.candidateProfile || null;
   const resumeText = location.state?.resumeText || '';
+  const interviewer = location.state?.interviewer || getRandomInterviewer();
 
   const initialDomain = candidateProfile?.targetRole || domains[0];
   const [domain, setDomain] = useState(initialDomain);
@@ -27,11 +24,6 @@ const InterviewSetup = () => {
 
   const handleStart = (e) => {
     e.preventDefault();
-<<<<<<< HEAD
-    // Navigate immediately — the AI interviewer will generate questions dynamically
-    navigate('/interview', {
-      state: { domain, difficulty, questionsCount },
-=======
     navigate('/interview', {
       state: {
         domain,
@@ -39,8 +31,8 @@ const InterviewSetup = () => {
         questionsCount,
         candidateProfile,
         resumeText,
+        interviewer,
       },
->>>>>>> ce543e9 (Candidate form)
     });
   };
 
@@ -79,7 +71,7 @@ const InterviewSetup = () => {
 
         <div className="setup-header text-center">
           <h2><Settings className="inline-icon" /> Interview Session Setup</h2>
-          <p>Configure parameters for your personalized AI voice interview</p>
+          <p>Configure parameters for your session with <strong>{interviewer.name}</strong></p>
         </div>
 
         <div className="setup-content">
@@ -88,14 +80,9 @@ const InterviewSetup = () => {
             <div className="form-group">
               <label><Briefcase className="label-icon" /> Select Domain / Focus Area</label>
               <div className="custom-select-wrapper">
-<<<<<<< HEAD
-                <select
-                  className="custom-select"
-=======
                 <input
                   type="text"
                   className="custom-input"
->>>>>>> ce543e9 (Candidate form)
                   value={domain}
                   onChange={(e) => setDomain(e.target.value)}
                   placeholder="e.g. Software Engineering / Full Stack"
@@ -127,11 +114,7 @@ const InterviewSetup = () => {
               <input
                 type="range"
                 min="3"
-<<<<<<< HEAD
-                max="15"
-=======
                 max="10"
->>>>>>> ce543e9 (Candidate form)
                 value={questionsCount}
                 onChange={(e) => setQuestionsCount(parseInt(e.target.value))}
                 className="custom-slider"
@@ -143,11 +126,7 @@ const InterviewSetup = () => {
             </div>
 
             <button type="submit" className="btn-primary start-btn">
-<<<<<<< HEAD
-              Start Interview <Play size={20} fill="currentColor" />
-=======
-              Start AI Voice Interview <Play size={20} fill="currentColor" />
->>>>>>> ce543e9 (Candidate form)
+              Start Interview with {interviewer.name} <Play size={20} fill="currentColor" />
             </button>
           </form>
 
@@ -155,8 +134,12 @@ const InterviewSetup = () => {
             <h3>Session Preview</h3>
             <div className="preview-items">
               <div className="preview-item">
+                <span className="preview-label">Interviewer</span>
+                <span className="preview-value gradient-text">{interviewer.name}</span>
+              </div>
+              <div className="preview-item">
                 <span className="preview-label">Candidate</span>
-                <span className="preview-value gradient-text">{candidateProfile?.fullName || 'Guest Candidate'}</span>
+                <span className="preview-value">{candidateProfile?.fullName || 'Guest Candidate'}</span>
               </div>
               <div className="preview-item">
                 <span className="preview-label">Target Role</span>
@@ -176,11 +159,7 @@ const InterviewSetup = () => {
               </div>
             </div>
             <div className="preview-info">
-<<<<<<< HEAD
-              <p><Mic size={16} /> Your AI interviewer will greet you, ask questions by voice, and follow up based on your answers — like a real conversation.</p>
-=======
-              <p>The AI interviewer will greet you by name and ask personalized voice questions tailored to your resume, projects, and skills.</p>
->>>>>>> ce543e9 (Candidate form)
+              <p><UserCheck size={16} /> <strong>{interviewer.name}</strong> ({interviewer.title}) will greet you and conduct a natural human voice interview tailored to your experience.</p>
             </div>
           </div>
         </div>
